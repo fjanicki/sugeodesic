@@ -267,7 +267,7 @@ class Geodesic
 			#Draw only the positive hub for a dome
 			if (c[2] > -@@g_tolerance)
 				hub = entities.add_group
-				outer_circle = hub.entities.add_circle(c, Geom::Vector3d.new(@@g_center.vector_to(c)), @@metal_hub_outer_thickness)				
+				outer_circle = hub.entities.add_circle(c, Geom::Vector3d.new(@@g_center.vector_to(c)), @@metal_hub_outer_radius)				
 				inner_circle = hub.entities.add_circle(c, Geom::Vector3d.new(@@g_center.vector_to(c)), inner_radius)
 				outer_end_face = hub.entities.add_face outer_circle
 				inner_end_face = hub.entities.add_face inner_circle
