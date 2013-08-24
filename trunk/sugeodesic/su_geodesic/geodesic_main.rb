@@ -266,7 +266,6 @@ class Geodesic
 		@@primitive_points.each_with_index { |c, index|
 			#Draw only the positive hub for a dome
 			if (c[2] > -@@g_tolerance)
-			print("Draw hub\n")
 				hub = entities.add_group
 				outer_circle = hub.entities.add_circle(c, Geom::Vector3d.new(@@g_center.vector_to(c)), @@metal_hub_outer_thickness)				
 				inner_circle = hub.entities.add_circle(c, Geom::Vector3d.new(@@g_center.vector_to(c)), inner_radius)
@@ -334,7 +333,6 @@ class Geodesic
 				@@primitive_points.push(Geom::Point3d.new (extend_line(@@g_center, p, @@g_radius)))
 			end
 			p_num = @@primitive_points.size() - 1
-			print("p_num: #{p_num}\n")
 		
 			#TODO Remove duplicate points in @@primitive_points and @@strut_points
 			if (c > 0)
