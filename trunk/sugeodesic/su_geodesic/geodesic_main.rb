@@ -44,15 +44,20 @@ class Geodesic
 	@@wood_strut_dist_from_hub = 3
 	@@wood_strut_thickness = 1.5
 	@@wood_strut_depth = 3.5
-
 	@@wood_strut_material = Sketchup::Color.new(255,215,0)
 
-
+	#Wood frame configuration
+	@@draw_wood_frame = 1
 	
-	#created dome data is stored in these arrays
+	#Dome reference data is stored in these arrays
 	@@primitive_points = []
 	@@strut_points = []
+	@@triangle_points = []
+	
+	#Dome shape data is stored in these arrays
 	@@strut_hubs = []
+	@@struts = []
+
 
 	
 	#tolerance factor to circumvent small number errors
@@ -78,7 +83,17 @@ class Geodesic
 			if(@@draw_wood_struts == 1)
 				add_wood_struts()
 			end
-						
+			
+			if(@@draw_wood_frame == 1)
+				add_wood_frame()
+			end
+			
+			#Group all of the elements
+			#dome = entities.add_group
+			#@@strut_hubs.each { |f|
+			#	dome.entities.add_face f
+			#}
+			#dome.entities.add_face @@strut_hubs @@struts
 	end
 	
 	#Creates the points of the tesselated tetrahedron
@@ -155,13 +170,13 @@ class Geodesic
 		
 		#decompose each face of the octahedron
 		tesselate(octahedron[0], octahedron[1], octahedron[4])
-		tesselate(octahedron[1], octahedron[2], octahedron[4])
-		tesselate(octahedron[2], octahedron[3], octahedron[4])
-		tesselate(octahedron[3], octahedron[0], octahedron[4])
-		tesselate(octahedron[0], octahedron[1], octahedron[5])
-		tesselate(octahedron[1], octahedron[2], octahedron[5])
-		tesselate(octahedron[2], octahedron[3], octahedron[5])
-		tesselate(octahedron[3], octahedron[0], octahedron[5])		
+#		tesselate(octahedron[1], octahedron[2], octahedron[4])
+#		tesselate(octahedron[2], octahedron[3], octahedron[4])
+#		tesselate(octahedron[3], octahedron[0], octahedron[4])
+#		tesselate(octahedron[0], octahedron[1], octahedron[5])
+#		tesselate(octahedron[1], octahedron[2], octahedron[5])
+#		tesselate(octahedron[2], octahedron[3], octahedron[5])
+#		tesselate(octahedron[3], octahedron[0], octahedron[5])		
 	end
 
 	#Creates the points of the tesselated icosahedron
@@ -202,10 +217,7 @@ class Geodesic
 		icosahedron.push(Geom::Point3d.new([0, -a, b]).transform!(t1).transform!(t2))
 		icosahedron.push(Geom::Point3d.new([0, -a, -b]).transform!(t1).transform!(t2))
 		icosahedron.push(Geom::Point3d.new([0, a, -b]).transform!(t1).transform!(t2))
-		
-		# Call methods on the Entities collection to draw stuff.
-		#new_face3 = entities.add_face icosahedron[8], icosahedron[9], icosahedron[10], icosahedron[11]
-		
+				
 		# draw the triangles of the icosahedron
 		icosa_faces = []
 		if(@@draw_primitive_solid_faces == 1)
@@ -283,7 +295,7 @@ class Geodesic
 	def add_wood_struts()
 		#Add the struts
 		@@strut_points.each { |c|
-			strut_faces = add_wood_strut(@@primitive_points[c[0]], @@primitive_points[c[1]], @@wood_strut_dist_from_hub)	
+			@@struts.push(add_wood_strut(@@primitive_points[c[0]], @@primitive_points[c[1]], @@wood_strut_dist_from_hub))
 
 			#Add the hub plates
 			#This currently relies on being here so that it gets the correct faces passed to it.
@@ -293,8 +305,58 @@ class Geodesic
 		}	
 	end
 	
+	def add_wood_frame()
+		# Get handles to our model and the Entities collection it contains.
+		model = Sketchup.active_model
+		entities = model.entities
+	
+		@@triangle_points.each { |pts|
+			orient = orientate(pts)
+			p0 = pts[orient]
+			p1 = pts[(orient + 1) % 3]
+			p2 = pts[(orient + 2) % 3]
+			m1 = midpoint(@@primitive_points[p1], @@primitive_points[p2])
+			entities.add_line(@@primitive_points[p0], m1)
+		}
+	end
+	
 	#Private functions
 	private
+	
+	#Given 3 points references(array) pick the that when joined to the center of the opposing side gives 
+	#the most up/down lines (for frame orientation)
+	def orientate(pts)
+		#Get center of triangle
+		m1 = midpoint(@@primitive_points[pts[1]], @@primitive_points[pts[2]])
+		m2 = midpoint(@@primitive_points[pts[0]], @@primitive_points[pts[1]])
+		c = Geom.intersect_line_line [@@primitive_points[pts[0]], m1], [@@primitive_points[pts[2]], m2]
+		
+		#Collect which points are above and below the center point in Z
+		above = []
+		below = []
+		for i in 0..2
+			if (@@primitive_points[pts[i]][2] > c[2])
+				above.push(i)
+			else
+				below.push(i)
+			end
+		end
+	
+		#The best orientation is the point by itself
+		if (above.size() == 1)
+			return above[0]
+		else
+			return below[0]
+		end
+	end
+	
+	#Return the midpoitn of two points
+	def midpoint(p1, p2)
+		v = Geom::Vector3d.new(p2 - p1)
+		v.length = p1.distance(p2) / 2
+		
+		return p1 + v
+	end
 	
 	# Given 3 points that make up a triangle, decompose the triangle into 
 	# [@@g_frequency] smaller triangles along each side
@@ -354,13 +416,18 @@ class Geodesic
 					face.material = @@tesselated_face_material
 					face.back_material = @@tesselated_face_material
 				end
+				if (@@primitive_points[p_num - order][2] >= -@@g_tolerance && @@primitive_points[p_num - order - 1][2] >= -@@g_tolerance && @@primitive_points[p_num][2] >= -@@g_tolerance)
+					@@triangle_points.push([p_num - order, p_num - order - 1, p_num])
+				end
 
 				if (c > 0)
 					if (@@draw_tesselated_faces == 1)
 						face = entities.add_face @@primitive_points[p_num - order - 1], @@primitive_points[p_num], @@primitive_points[p_num - 1]		
 						face.material = @@tesselated_face_material
 						face.back_material = @@tesselated_face_material
-						#group.entities.add_face(face)
+					end
+					if (@@primitive_points[p_num - order - 1][2] >= -@@g_tolerance && @@primitive_points[p_num][2] >= -@@g_tolerance && @@primitive_points[p_num - 1][2] >= -@@g_tolerance)
+						@@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
 					end
 				end
 			end
@@ -625,6 +692,55 @@ def calc_hub_plate_face(strut_face, strut_end, hub, extend_dist)
 
 	#return the hub face plate
 	return hub_plate_coords
+end
+
+#Given a line (defined by 2 Point3d's and a plane defined by 3 Point3d's, return point of incidence
+#A status will also be returned -1 = Parallel, no intersection, 0 = Line is coincident with plane, 1 = normal intersection, 
+#	2 = no intersection unless the line is considered infinite ray
+def line_plane_intersection(line, plane)
+	#Create some vectors from the line and plane
+	p_v1 = Geom::Vector3d.new(plane[1] - plane[0])
+	p_v2 = Geom::Vector3d.new(plane[2] - plane[0])
+	
+	l1 = Geom::Point3d.new(line[0])
+	l2 = Geom::Point3d.new(line[1])
+	
+	l_v = Geom::Vector3d.new(l2 - l1)
+	
+	#The point of intersection we will return
+	intersect = Geom::Point3d.new([0,0,0])
+	
+	#Get the normal to the plane
+	p_norm = p_v1.cross(p_v2)
+	
+	#Check if the line is parallel to the plane
+	parallel = p_norm.dot(l_v)
+	if (parallel == 0)
+		#Now check if the line is also ON the plane
+		if ( p_norm.dot(line[0] - plane[0]) != 0)
+			#the line is actually on the plane
+			status = 0
+		else	
+			#it is just parallel
+			status = -1
+		end
+	else
+		w = Geom::Vector3d.new([plane[1].x - l1.x, plane[1].y - l1.y, plane[1].z - l1.z])
+		t = p_norm.dot(w) / parallel
+		
+		if (t >= 0 and t <= 1)
+			#The 'finite' line intersects the plane
+			status = 1
+		else
+			#The 'infinite' line intersects the plane
+			status = 2
+		end
+
+		#Calculate the point on the line
+		intersect = [t * l2.x + (1 - t) * l1.x, t * l2.y + (1 - t) * l1.y, t * l2.z + (1 - t) * l1.z]
+	end
+	
+	return [status, intersect]
 end
 
 #Returns a point along the [p1/p2] line [dist] from [p1] in the direction of [p2]
