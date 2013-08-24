@@ -48,6 +48,7 @@ class Geodesic
 
 	#Wood frame configuration
 	@@draw_wood_frame = 1
+	@@frame_separation = 12
 	
 	#Dome reference data is stored in these arrays
 	@@primitive_points = []
@@ -312,24 +313,154 @@ class Geodesic
 	
 		@@triangle_points.each { |pts|
 			orient = orientate(pts)
-			p0 = pts[orient]
-			p1 = pts[(orient + 1) % 3]
-			p2 = pts[(orient + 2) % 3]
-			m1 = midpoint(@@primitive_points[p1], @@primitive_points[p2])
-			entities.add_line(@@primitive_points[p0], m1)
+			pp0 = @@primitive_points[pts[orient]]	
+			pp1 = @@primitive_points[pts[(orient + 1) % 3]]	
+			pp2 = @@primitive_points[pts[(orient + 2) % 3]]
+			
+			#create some vectors so that we can create the 4 points that will make the plane of strut at correct orientation
+			v1 = Geom::Vector3d.new(@@g_center.vector_to(pp1))
+			v2 = Geom::Vector3d.new(@@g_center.vector_to(pp2))
+			v3 = Geom::Vector3d.new(pp2.vector_to(pp1))
+			
+			#calculate the normal
+			n1 = v1.cross v3
+			n2 = v2.cross v3
+			n1.length = @@wood_strut_thickness / 2
+			n2.length = @@wood_strut_thickness / 2
+
+			#create the outer facing points
+			pt = []
+			pt[0] = pp1 + n1
+			pt[1] = pp1 - n1
+			pt[2] = pp2 + n2
+			pt[3] = pp2 - n2
+
+			#create the inner facing points
+			v1.length = @@wood_strut_depth
+			v2.length = @@wood_strut_depth
+			
+			pt[4] = pt[2] - v1
+			pt[5] = pt[3] - v1
+			pt[6] = pt[4] - v2
+			pt[7] = pt[5] - v2
+			
+			#work out which pair of points is closer so that the frame doesn't go through strut
+			if (pp0.distance(pt[0]) < pp0.distance(pt[1]))
+				pt_a = pt[0]
+				pt_b = pt[2]
+				pt_c = pt[4]
+				pt_d = pt[6]
+				
+			else
+				pt_a = pt[1]
+				pt_b = pt[3]	
+				pt_c = pt[5]
+				pt_d = pt[7]	
+			end
+#			entities.add_face pt_a, pt_b, pt_c		#face to do intersections with
+			
+			m1 = midpoint(pp1, pp2)
+			center = centroid([pp0, pp1, pp2])
+			v = Geom::Vector3d.new(center - m1)		#Vector we'll use for orientating all frame struts
+			v.length = m1.distance(pp0)
+			
+			dist_left = pt_a.distance(pt_b) / 2
+			seperation = @@frame_separation / 2	#first distance is 1/2 amount as it is either side of center
+			offset = seperation
+			half_thickness = @@wood_strut_thickness / 2
+			while (dist_left > @@frame_separation / 2)
+				ex1_1 = extend_line(m1, pp1, offset - half_thickness)
+				ex1_2 = extend_line(m1, pp1, offset + half_thickness)
+				ex2_1 = extend_line(m1, pp2, offset - half_thickness)
+				ex2_2 = extend_line(m1, pp2, offset + half_thickness)
+				status, i1_1 = line_plane_intersection([ex1_1, ex1_1 + v], [pt_a, pt_b, pt_c])
+				status, i1_2 = line_plane_intersection([ex1_2, ex1_2 + v], [pt_a, pt_b, pt_c])
+				status, i2_1 = line_plane_intersection([ex2_1, ex2_1 + v], [pt_a, pt_b, pt_c])
+				status, i2_2 = line_plane_intersection([ex2_2, ex2_2 + v], [pt_a, pt_b, pt_c])
+				#entities.add_line i1_1, i1_1 + v
+				#entities.add_line i1_2, i1_2 + v
+				#entities.add_line i2_1, i2_1 + v
+				#entities.add_line i2_2, i2_2 + v
+
+				pl1 = get_closest_plane(center, [pp0, pp1])
+				pl2 = get_closest_plane(center, [pp0, pp2])
+				status, i1_1e = line_plane_intersection([i1_1, i1_1 + v], [pl1[0], pl1[1], pl1[2]])
+				status, i1_2e = line_plane_intersection([i1_2, i1_2 + v], [pl1[0], pl1[1], pl1[2]])
+				status, i2_1e = line_plane_intersection([i2_1, i2_1 + v], [pl2[0], pl2[1], pl2[2]])
+				status, i2_2e = line_plane_intersection([i2_2, i2_2 + v], [pl2[0], pl2[1], pl2[2]])
+				#Final front facing calculated points
+				entities.add_line i1_1, i1_1e
+				entities.add_line i1_2, i1_2e
+				entities.add_line i2_1, i2_1e
+				entities.add_line i2_2, i2_2e
+				
+				
+				#update variables for next iteration
+				dist_left -= seperation
+				seperation = @@frame_separation
+				offset += seperation
+			end
 		}
 	end
 	
 	#Private functions
 	private
 	
+	#given 2 pts, calculate the 4 points that make the closest facing plane that would make up a strut
+	def get_closest_plane(pt, pts)
+		p1 = pts[0]
+		p2 = pts[1]
+		
+		#Create a vector of inset length (this will be how far back from the hub the strut starts
+		v1 = Geom::Vector3d.new(p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
+		v1.length = @@wood_strut_dist_from_hub
+		
+		#calculate the inset point ends 
+		pt1 = Geom::Point3d.new(p1[0] + v1[0], p1[1] + v1[1], p1[2] + v1[2])
+		pt2 = Geom::Point3d.new(p2[0] - v1[0], p2[1] - v1[1], p2[2] - v1[2])
+
+		#create some vectors so that we can create the 4 points that will make the plane of strut at correct orientation
+		v2 = Geom::Vector3d.new(@@g_center.vector_to(p1))
+		v3 = Geom::Vector3d.new(@@g_center.vector_to(p2))
+		v4 = Geom::Vector3d.new(p2.vector_to(p1))
+		
+		#calculate the normal
+		n1 = v2.cross v4
+		n2 = v3.cross v4
+		n1.length = @@wood_strut_thickness / 2
+		n2.length = @@wood_strut_thickness / 2
+
+		#create the outer facing points
+		pt3 = pt1 + n1
+		pt4 = pt1 - n1
+		pt5 = pt2 + n2
+		pt6 = pt2 - n2
+		
+		#create the inner facing points
+		v2.length = @@wood_strut_depth
+		v3.length = @@wood_strut_depth
+		
+		pt7 = pt3 - v2
+		pt8 = pt4 - v2
+		pt9 = pt5 - v3
+		pt10 = pt6 - v3
+
+		# Get handles to our model and the Entities collection it contains.
+		model = Sketchup.active_model
+		entities = model.entities
+
+		if (pt.distance(pt3) < pt.distance(pt4))
+			return [pt3, pt5, pt9, pt7]
+		else
+			return [pt4, pt6, pt10, pt8]		
+		end
+	end
+	
 	#Given 3 points references(array) pick the that when joined to the center of the opposing side gives 
 	#the most up/down lines (for frame orientation)
 	def orientate(pts)
-		#Get center of triangle
-		m1 = midpoint(@@primitive_points[pts[1]], @@primitive_points[pts[2]])
-		m2 = midpoint(@@primitive_points[pts[0]], @@primitive_points[pts[1]])
-		c = Geom.intersect_line_line [@@primitive_points[pts[0]], m1], [@@primitive_points[pts[2]], m2]
+		#Get centroid of triangle
+		c = centroid([@@primitive_points[pts[0]], @@primitive_points[pts[1]], @@primitive_points[pts[2]]])
 		
 		#Collect which points are above and below the center point in Z
 		above = []
@@ -348,6 +479,15 @@ class Geodesic
 		else
 			return below[0]
 		end
+	end
+	
+	#returns the centroid of a triangle given points
+	def centroid(pts)
+		m1 = midpoint(pts[1], pts[2])
+		m2 = midpoint(pts[0], pts[1])
+		c = Geom.intersect_line_line [pts[0], m1], [pts[2], m2]
+		
+		return c
 	end
 	
 	#Return the midpoitn of two points
@@ -737,7 +877,7 @@ def line_plane_intersection(line, plane)
 		end
 
 		#Calculate the point on the line
-		intersect = [t * l2.x + (1 - t) * l1.x, t * l2.y + (1 - t) * l1.y, t * l2.z + (1 - t) * l1.z]
+		intersect = Geom::Point3d.new([t * l2.x + (1 - t) * l1.x, t * l2.y + (1 - t) * l1.y, t * l2.z + (1 - t) * l1.z])
 	end
 	
 	return [status, intersect]
