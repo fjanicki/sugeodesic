@@ -364,11 +364,11 @@ class Geodesic
 			v = Geom::Vector3d.new(center - m1)		#Vector we'll use for orientating all frame struts
 			v.length = m1.distance(pp0)
 			
-			dist_left = pt_a.distance(pt_b) / 2 - @@wood_strut_dist_from_hub
 			seperation = @@frame_separation / 2	#first distance is 1/2 amount as it is either side of center
+			dist_left = pt_a.distance(pt_b) / 2 - seperation - @@wood_strut_dist_from_hub
 			offset = seperation
 			half_thickness = @@wood_strut_thickness / 2
-			while (dist_left > @@frame_separation / 2)
+			while (dist_left > @@frame_separation / 2 + half_thickness)
 				ex1_1 = extend_line(m1, pp1, offset - half_thickness)
 				ex1_2 = extend_line(m1, pp1, offset + half_thickness)
 				ex2_1 = extend_line(m1, pp2, offset - half_thickness)
