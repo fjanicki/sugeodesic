@@ -23,7 +23,7 @@ class Geodesic
 	#Main Configuration items
 	@@g_frequency = 3
 	@@g_radius = 150
-	@@g_platonic_solid = 8
+	@@g_platonic_solid = 20
 	@@g_fraction = 0.6
 	@@g_center = Geom::Point3d.new ([0, 0, -@@g_radius + 2 * @@g_radius * @@g_fraction])
 	
@@ -205,7 +205,7 @@ class Geodesic
 		t2 = Geom::Transformation.translation(@@g_center)
 
 		#create the points of the icosahedron
-		icosahedron = Array.new(12)
+		icosahedron = []
 		icosahedron.push(Geom::Point3d.new([-a, -b, 0]).transform!(t1).transform!(t2))
 		icosahedron.push(Geom::Point3d.new([a, -b, 0]).transform!(t1).transform!(t2))
 		icosahedron.push(Geom::Point3d.new([a, b, 0]).transform!(t1).transform!(t2))
