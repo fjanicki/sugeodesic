@@ -24,7 +24,7 @@ class Geodesic
 	@@g_frequency = 3
 	@@g_radius = 150
 	@@g_platonic_solid = 8
-	@@g_fraction = 0.5
+	@@g_fraction = 0.6
 	@@g_center = Geom::Point3d.new ([0, 0, -@@g_radius + 2 * @@g_radius * @@g_fraction])
 	
 	@@draw_primitive_solid_faces = 0
@@ -171,13 +171,13 @@ class Geodesic
 		
 		#decompose each face of the octahedron
 		tesselate(octahedron[0], octahedron[1], octahedron[4])
-#		tesselate(octahedron[1], octahedron[2], octahedron[4])
-#		tesselate(octahedron[2], octahedron[3], octahedron[4])
-#		tesselate(octahedron[3], octahedron[0], octahedron[4])
-#		tesselate(octahedron[0], octahedron[1], octahedron[5])
-#		tesselate(octahedron[1], octahedron[2], octahedron[5])
-#		tesselate(octahedron[2], octahedron[3], octahedron[5])
-#		tesselate(octahedron[3], octahedron[0], octahedron[5])		
+		tesselate(octahedron[1], octahedron[2], octahedron[4])
+		tesselate(octahedron[2], octahedron[3], octahedron[4])
+		tesselate(octahedron[3], octahedron[0], octahedron[4])
+		tesselate(octahedron[0], octahedron[1], octahedron[5])
+		tesselate(octahedron[1], octahedron[2], octahedron[5])
+		tesselate(octahedron[2], octahedron[3], octahedron[5])
+		tesselate(octahedron[3], octahedron[0], octahedron[5])		
 	end
 
 	#Creates the points of the tesselated icosahedron
@@ -364,7 +364,7 @@ class Geodesic
 			v = Geom::Vector3d.new(center - m1)		#Vector we'll use for orientating all frame struts
 			v.length = m1.distance(pp0)
 			
-			dist_left = pt_a.distance(pt_b) / 2
+			dist_left = pt_a.distance(pt_b) / 2 - @@wood_strut_dist_from_hub
 			seperation = @@frame_separation / 2	#first distance is 1/2 amount as it is either side of center
 			offset = seperation
 			half_thickness = @@wood_strut_thickness / 2
@@ -377,10 +377,6 @@ class Geodesic
 				status, i1_2 = line_plane_intersection([ex1_2, ex1_2 + v], [pt_a, pt_b, pt_c])
 				status, i2_1 = line_plane_intersection([ex2_1, ex2_1 + v], [pt_a, pt_b, pt_c])
 				status, i2_2 = line_plane_intersection([ex2_2, ex2_2 + v], [pt_a, pt_b, pt_c])
-				#entities.add_line i1_1, i1_1 + v
-				#entities.add_line i1_2, i1_2 + v
-				#entities.add_line i2_1, i2_1 + v
-				#entities.add_line i2_2, i2_2 + v
 
 				pl1 = get_closest_plane(center, [pp0, pp1])
 				pl2 = get_closest_plane(center, [pp0, pp2])
@@ -388,12 +384,21 @@ class Geodesic
 				status, i1_2e = line_plane_intersection([i1_2, i1_2 + v], [pl1[0], pl1[1], pl1[2]])
 				status, i2_1e = line_plane_intersection([i2_1, i2_1 + v], [pl2[0], pl2[1], pl2[2]])
 				status, i2_2e = line_plane_intersection([i2_2, i2_2 + v], [pl2[0], pl2[1], pl2[2]])
-				#Final front facing calculated points
-				entities.add_line i1_1, i1_1e
-				entities.add_line i1_2, i1_2e
-				entities.add_line i2_1, i2_1e
-				entities.add_line i2_2, i2_2e
 				
+				v2 = Geom::Vector3d.new(@@g_center.vector_to(i1_1))
+				v2.length = @@wood_strut_depth
+				i3_1 = i1_1 - v2
+				i3_2 = i1_2 - v2
+				i4_1 = i2_1 - v2
+				i4_2 = i2_2 - v2
+				status, i3_1e = line_plane_intersection([i3_1, i3_1 + v], [pl1[0], pl1[1], pl1[2]])
+				status, i3_2e = line_plane_intersection([i3_2, i3_2 + v], [pl1[0], pl1[1], pl1[2]])
+				status, i4_1e = line_plane_intersection([i4_1, i4_1 + v], [pl2[0], pl2[1], pl2[2]])
+				status, i4_2e = line_plane_intersection([i4_2, i4_2 + v], [pl2[0], pl2[1], pl2[2]])
+
+				#Now that we have the 8 points, create the faces of the frame strut
+				create_solid([i1_1, i1_1e, i1_2, i1_2e, i3_1, i3_1e, i3_2, i3_2e])	
+				create_solid([i2_1, i2_1e, i2_2, i2_2e, i4_1, i4_1e, i4_2, i4_2e])	
 				
 				#update variables for next iteration
 				dist_left -= seperation
@@ -405,6 +410,31 @@ class Geodesic
 	
 	#Private functions
 	private
+	
+	def create_solid(pts)
+		# Get handles to our model and the Entities collection it contains.
+		model = Sketchup.active_model
+		entities = model.entities
+
+		#create the faces of the solid
+		solid = entities.add_group
+		face = Array.new(6)
+		face[0] = solid.entities.add_face pts[0], pts[1], pts[3], pts[2]
+		face[1] = solid.entities.add_face pts[0], pts[1], pts[5], pts[4]
+		face[2] = solid.entities.add_face pts[0], pts[2], pts[6], pts[4]
+		face[3] = solid.entities.add_face pts[2], pts[3], pts[7], pts[6]	
+		face[4] = solid.entities.add_face pts[1], pts[3], pts[7], pts[5]
+		face[5] = solid.entities.add_face pts[4], pts[5], pts[7], pts[6]	
+		
+		#set the color of the solid
+		color = @@wood_strut_material
+		face[0].material = color; face[0].back_material = color;
+		face[1].material = color; face[1].back_material = color;
+		face[2].material = color; face[2].back_material = color;
+		face[3].material = color; face[3].back_material = color;
+		face[4].material = color; face[4].back_material = color;
+		face[5].material = color; face[5].back_material = color;
+	end
 	
 	#given 2 pts, calculate the 4 points that make the closest facing plane that would make up a strut
 	def get_closest_plane(pt, pts)
