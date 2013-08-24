@@ -1,0 +1,106 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>Stuff</title>
+<link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />
+<script src="http://code.jquery.com/jquery-1.9.1.js"></script>
+<script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+<link rel="stylesheet" href="/resources/demos/style.css" />
+<script language="javascript" src="js/prototype.js"></script>
+<script language="javascript">
+$(function() {
+    var icons = {
+      header: "ui-icon-circle-arrow-e",
+      activeHeader: "ui-icon-circle-arrow-s"
+    };
+    $( "#accordion" ).accordion({
+      icons: icons
+    });
+    $( "#toggle" ).button().click(function() {
+      if ( $( "#accordion" ).accordion( "option", "icons" ) ) {
+        $( "#accordion" ).accordion( "option", "icons", null );
+      } else {
+        $( "#accordion" ).accordion( "option", "icons", icons );
+      }
+    });
+  });
+function dataFromSketchup(name){
+   $('nameId').update('Your name is <strong>' + name + '<strong>');
+}
+</script>
+</head>
+<body>
+<div id="nameId">
+ 
+</div>
+<a href="skp:typeName@true">Configure Geodesic</a><br />
+	<a href="skp:showConsole@true">Show Console</a>
+
+<div id="accordion">
+  <h3>Section 1 - Base Platonic Solid</h3>
+  <div>
+    <p>Select Base Platonic Solid to make Geodesic from</p>
+	<form action="">
+	<ul>
+      <input type="radio" name="platonic_solid" value="tetrahedron"  disabled>Tetrahedron<br>
+      <input type="radio" name="platonic_solid" value="Octahedron"  disabled>Octahedron<br>
+      <input type="radio" name="platonic_solid" value="Icosahedron" checked="checked">Icosahedron<br>
+    </ul>
+	</form>
+  </div>
+ <h3>Section 2 - Geodesic Frequency</h3>
+  <div>
+    <p>Select Frequency of Geodesic
+ 	<input type="text" name="frequency" value="3">
+  </div>
+  <h3>Section 3 - Geodesic Configuration</h3>
+  <div>
+    <p>Select amount of Dome to create
+	<form>
+	<ul>
+      <input type="radio" name="dome_amount" value="1_5">1/5<br>
+      <input type="radio" name="dome_amount" value="2_5">2/5<br>
+      <input type="radio" name="dome_amount" value="1_2" checked="checked">1/2 Dome<br>
+      <input type="radio" name="dome_amount" value="3_5" >3/5<br>
+      <input type="radio" name="dome_amount" value="4_5" >4/5<br>
+      <input type="radio" name="dome_amount" value="5_5" >Complete Sphere<br>
+    </ul>
+	</form>
+  </div>
+  <h3>Section 4 - Strut Configuration</h3>
+  <div>
+    <p>Select strut type</p>
+    <ul>
+      <li>Rectangular</li>
+      <li>Cylindrical</li>
+    </ul>
+    Select strut material :
+ 	
+  </div>
+  <h3>Section 5 - Hub Configuration</h3>
+	<div>
+	<p>Select hub type</p>
+	<ul>
+		<li>Rectangular</li>
+		<li>Cylindrical</li>
+	</ul>  
+	</div>
+   Select hub material :
+   </div>
+  <h3>Section 6 - Extra Options</h3>
+  <div>
+    <p>stuff</p>
+	<form>
+	<ul>
+      <input type="checkbox" name="frame_struts" value="yes">Frame Struts<br>
+      <input type="checkbox" name="cover_outer_frame" value="yes">Cover Outer Frame<br>
+
+    </ul>
+	</form>
+  </div>
+</div>
+ 
+<button id="create_geodesic">Create Geodesic</button>
+</body>
+</html>
