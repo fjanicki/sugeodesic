@@ -25,82 +25,207 @@ $(function() {
       }
     });
   });
-function dataFromSketchup(name){
-   $('nameId').update('Your name is <strong>' + name + '<strong>');
+
+	//Remember form values
+	$(document).ready(function() {
+		$(':input.remember').each(function() {
+			$(this).attr('data-remember', $(this).val());
+		});
+		$('button.reset').click(function() {
+			$(':input.remember').each(function() {
+				$(this).val($(this).attr('data-remember'));
+			});
+		});
+	});
+
+function messageFromSketchup(msg){
+   alert(msg);
 }
+
+  
+function dataFromSketchup(variable, value){
+   $('variable').update(value);
+   alert('got here');
+}
+
+function call_ruby( callback_name, message ) {
+    location = 'skp:' + callback_name + '@' + message
+}
+
+function isNumber(n) {
+  return !isNaN(parseFloat(n)) && isFinite(n);
+}
+
+function validate_form() {
+	var error = 0;
+	
+	//Send Platonic Solid data
+	var ps = document.getElementsByName('platonic_solid');
+
+	for (var i = 0, length = ps.length; i < length; i++) {
+		if (ps[i].checked) {
+			// Send the value back to SketchUp
+			call_ruby('platonic_solid', ps[i].value);
+
+			// only one radio can be logically checked, don't check the rest
+			break;
+		}
+	}
+	
+	//Check and send the frequency data
+	var v = document.getElementById('frequency');
+	var f = Number(v.value);
+	if (!isNaN(f)) {
+		if (f < 1 || f > 10) {
+			alert("Woah there cowboy. How about making 'Frequency' a number between 1 and 10")
+			error = 1;
+		} else {
+			call_ruby('frequency', f);
+		}
+	} else {
+		alert("'Frequency' must be a number! Please correct and try again");
+		error = 1;
+	}
+
+	//Check and send the fraction data
+	v = document.getElementById('fraction');
+	var fr = parseFloat(v.value);
+	if (!isNaN(fr)) {
+		if (fr < 0 || fr > 1) {
+			alert("Woah there cowboy. How about making 'Fraction' a number between 0 and 1");
+			error = 1;
+		} else {
+			call_ruby('fraction', fr);
+		}
+	} else {
+		alert("'Fraction' must be a number! Please correct and try again");
+		error = 1;
+	}
+
+	//Check and send the radius data
+	v = document.getElementById('radius');
+	var r = parseFloat(v.value);
+	if (!isNaN(r)) {
+		if (r < 0) {
+			alert("Woah there cowboy. How about making 'Radius' a number greater than 0");
+			error = 1;
+		} else {
+			call_ruby('radius', r);
+		}
+	} else {
+		alert("'Radius' must be a number! Please correct and try again");
+		error = 1;
+	}
+
+	//Check and send the thickness data
+	v = document.getElementById('thickness');
+	var w = parseFloat(v.value);
+	if (!isNaN(w)) {
+		if (w < 0) {
+			alert("Woah there cowboy. How about making 'thickness' a number greater than 0");
+			error = 1;
+		} else {
+			call_ruby('thickness', w);
+		}
+	} else {
+		alert("'thickness' must be a number! Please correct and try again");
+		error = 1;
+	}
+
+	//Check and send the depth data
+	v = document.getElementById('depth');
+	var t = parseFloat(v.value);
+	if (!isNaN(t)) {
+		if (t < 0) {
+			alert("Woah there cowboy. How about making 'depth' a number greater than 0");
+			error = 1;
+		} else {
+			call_ruby('depth', t);
+		}
+	} else {
+		alert("'depth' must be a number! Please correct and try again");
+		error = 1;
+	}
+	
+	if (error == 0) {
+		call_ruby('create_geodesic', 'true');
+	}
+}
+
 </script>
 </head>
 <body>
-<div id="nameId">
- 
-</div>
-<a href="skp:typeName@true">Configure Geodesic</a><br />
-	<a href="skp:showConsole@true">Show Console</a>
+<img src="../images/title banner.png">
+<h3>Click on Each section to configure your Geodesic and then click Generate</h3>
+<form name="configure_geodesic" action="" onsubmit="validate_form()" method="post">
 
 <div id="accordion">
-  <h3>Section 1 - Base Platonic Solid</h3>
-  <div>
-    <p>Select Base Platonic Solid to make Geodesic from</p>
-	<form action="">
-	<ul>
-      <input type="radio" name="platonic_solid" value="tetrahedron"  disabled>Tetrahedron<br>
-      <input type="radio" name="platonic_solid" value="Octahedron"  disabled>Octahedron<br>
-      <input type="radio" name="platonic_solid" value="Icosahedron" checked="checked">Icosahedron<br>
-    </ul>
-	</form>
-  </div>
- <h3>Section 2 - Geodesic Frequency</h3>
-  <div>
-    <p>Select Frequency of Geodesic
- 	<input type="text" name="frequency" value="3">
-  </div>
-  <h3>Section 3 - Geodesic Configuration</h3>
-  <div>
-    <p>Select amount of Dome to create
-	<form>
-	<ul>
-      <input type="radio" name="dome_amount" value="1_5">1/5<br>
-      <input type="radio" name="dome_amount" value="2_5">2/5<br>
-      <input type="radio" name="dome_amount" value="1_2" checked="checked">1/2 Dome<br>
-      <input type="radio" name="dome_amount" value="3_5" >3/5<br>
-      <input type="radio" name="dome_amount" value="4_5" >4/5<br>
-      <input type="radio" name="dome_amount" value="5_5" >Complete Sphere<br>
-    </ul>
-	</form>
-  </div>
-  <h3>Section 4 - Strut Configuration</h3>
-  <div>
-    <p>Select strut type</p>
-    <ul>
-      <li>Rectangular</li>
-      <li>Cylindrical</li>
-    </ul>
-    Select strut material :
- 	
-  </div>
-  <h3>Section 5 - Hub Configuration</h3>
-	<div>
-	<p>Select hub type</p>
-	<ul>
-		<li>Rectangular</li>
-		<li>Cylindrical</li>
-	</ul>  
-	</div>
-   Select hub material :
-   </div>
-  <h3>Section 6 - Extra Options</h3>
-  <div>
-    <p>stuff</p>
-	<form>
-	<ul>
-      <input type="checkbox" name="frame_struts" value="yes">Frame Struts<br>
-      <input type="checkbox" name="cover_outer_frame" value="yes">Cover Outer Frame<br>
 
-    </ul>
-	</form>
-  </div>
+	<h3>Section 1 - Base Platonic Solid</h3>
+	<div>
+		<p>Select Base Platonic Solid to make Geodesic from</p>
+		<ul>
+		<table>
+			<tr>
+				<td><input type="radio" name="platonic_solid" value="4" >Tetrahedron</td>
+				<td><input type="radio" name="platonic_solid" value="8" >Octahedron</td>
+				<td><input type="radio" name="platonic_solid" value="20" checked="checked">Icosahedron</td>
+			</tr>
+			<tr>
+				<td><img src="../images/Tetrahedron.png"></td>
+				<td><img src="../images/Octahedron.png"></td>
+				<td><img src="../images/Icosahedron.png"></td>
+			</tr>
+		</table>
+		</ul>
+	</div>
+  
+	<h3>Section 2 - Geodesic Frequency</h3>
+	<div>
+		<p>Select Frequency of Geodesic</p>
+		Enter a number between 1 and 10 (the higher the number the smoother the dome as it uses more struts)
+		<input type="text" id="frequency" value="3">
+	</div>
+  
+	<h3>Section 3 - Geodesic Configuration</h3>
+	<div>
+		<p>Enter amount of Dome to create </p>
+		A number between 0 and 1
+		<ul>
+			<input type="text" id="fraction" value="0.5">
+		</ul>
+		<p>Enter radius of the Dome to create </p>
+		<ul>
+			<input type="text" id="radius" value="150">
+		</ul>
+	</div>
+  
+	<h3>Section 4 - Strut Configuration</h3>
+	<div>
+		<p>Select strut type</p>
+		<ul>
+			<li>Rectangular</li>
+			<p>Enter dimensions of strut </p>
+			<ul>
+				<input type="text" id="thickness" value="1.5" size 5> x <input type="text" id="depth" value="3.5" size 5>
+			</ul>
+
+		</ul>
+		Select strut material : 	
+	</div>
+  
+	<h3>Section 5 - Hub Configuration</h3>
+	<div>
+		<p>Select hub type</p>
+		<ul>
+			<li>Rectangular</li>
+			<li>Cylindrical</li>
+		</ul>  
+	</div>
+
 </div>
- 
-<button id="create_geodesic">Create Geodesic</button>
+
+<input class="reset" type="submit" value="Generate">
+</form>
 </body>
 </html>
