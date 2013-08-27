@@ -56,6 +56,56 @@ function isNumber(n) {
   return !isNaN(parseFloat(n)) && isFinite(n);
 }
 
+function validate_int(int_var_str, min, max) {
+	var v = document.getElementById(int_var_str);
+	var int_var = Number(v.value);
+	if (!isNaN(int_var)) {
+		if (min != max) {
+			if (int_var < min || int_var > max) {
+				alert("Woah there cowboy. How about making " + int_var_str + "a number between " + min + " and " + max);
+				return 1;
+			} else {
+				call_ruby(int_var_str, int_var);
+			}
+		} else {
+			if (int_var < min) {
+				alert("Woah there cowboy. How about making " + int_var_str + "a number greater than " + min);
+				return 1;
+			}
+		}		
+	} else {
+		alert(int_var_str + " must be a number! Please correct and try again");
+		return 1;
+	}
+	
+	return 0;
+}
+
+function validate_float(float_var_str, min) {
+	var v = document.getElementById(float_var_str);
+	var float_var = parseFloat(v.value);
+	if (!isNaN(float_var)) {
+		if (float_var < 0) {
+			alert("Woah there cowboy. How about making " + float_var_str + " a number greater than " + min);
+			return 1;
+		} else {
+			call_ruby(float_var_str, float_var);
+		}
+	} else {
+		alert(float_var_str + " must be a number! Please correct and try again");
+		return 1;
+	}
+	return 0;
+}
+
+function send_checkbox(var_str) {
+	if (document.getElementById(var_str).checked == true) {
+		call_ruby(var_str, "1");
+	} else {
+		call_ruby(var_str, "0");	
+	}
+}
+
 function validate_form() {
 	var error = 0;
 	
@@ -66,86 +116,42 @@ function validate_form() {
 		if (ps[i].checked) {
 			// Send the value back to SketchUp
 			call_ruby('platonic_solid', ps[i].value);
-
 			// only one radio can be logically checked, don't check the rest
 			break;
 		}
 	}
 	
-	//Check and send the frequency data
-	var v = document.getElementById('frequency');
-	var f = Number(v.value);
-	if (!isNaN(f)) {
-		if (f < 1 || f > 10) {
-			alert("Woah there cowboy. How about making 'Frequency' a number between 1 and 10")
-			error = 1;
-		} else {
-			call_ruby('frequency', f);
-		}
-	} else {
-		alert("'Frequency' must be a number! Please correct and try again");
-		error = 1;
-	}
+	var ret;
+	//Check and send the frequency data	
+	ret = validate_int('frequency', 1, 10);
+	if (ret == 1) { error = 1; }
+	
 
 	//Check and send the fraction data
-	v = document.getElementById('fraction');
-	var fr = parseFloat(v.value);
-	if (!isNaN(fr)) {
-		if (fr < 0 || fr > 1) {
-			alert("Woah there cowboy. How about making 'Fraction' a number between 0 and 1");
-			error = 1;
-		} else {
-			call_ruby('fraction', fr);
-		}
-	} else {
-		alert("'Fraction' must be a number! Please correct and try again");
-		error = 1;
-	}
+	ret = validate_int('fraction_num', 1, 1);
+	if (ret == 1) { error = 1; }
+
+	ret = validate_int('fraction_den', 1, 1);
+	if (ret == 1) { error = 1; }
 
 	//Check and send the radius data
-	v = document.getElementById('radius');
-	var r = parseFloat(v.value);
-	if (!isNaN(r)) {
-		if (r < 0) {
-			alert("Woah there cowboy. How about making 'Radius' a number greater than 0");
-			error = 1;
-		} else {
-			call_ruby('radius', r);
-		}
-	} else {
-		alert("'Radius' must be a number! Please correct and try again");
-		error = 1;
-	}
+	ret = validate_float('radius', 0)
+	if (ret == 1) { error = 1; }
 
 	//Check and send the thickness data
-	v = document.getElementById('thickness');
-	var w = parseFloat(v.value);
-	if (!isNaN(w)) {
-		if (w < 0) {
-			alert("Woah there cowboy. How about making 'thickness' a number greater than 0");
-			error = 1;
-		} else {
-			call_ruby('thickness', w);
-		}
-	} else {
-		alert("'thickness' must be a number! Please correct and try again");
-		error = 1;
-	}
+	ret = validate_float('thickness', 0)
+	if (ret == 1) { error = 1; }
 
 	//Check and send the depth data
-	v = document.getElementById('depth');
-	var t = parseFloat(v.value);
-	if (!isNaN(t)) {
-		if (t < 0) {
-			alert("Woah there cowboy. How about making 'depth' a number greater than 0");
-			error = 1;
-		} else {
-			call_ruby('depth', t);
-		}
-	} else {
-		alert("'depth' must be a number! Please correct and try again");
-		error = 1;
-	}
+	ret = validate_float('thickness', 0)
+	if (ret == 1) { error = 1; }
+
+	//send_checkbox("draw_edges")
+	//<input type="checkbox" id="draw_edges"> Draw Geodesic Edges
+	send_checkbox("draw_faces")
+	send_checkbox("draw_wood_struts")
+	send_checkbox("draw_wood_frame")
+	send_checkbox("draw_metal_hubs")
 	
 	if (error == 0) {
 		call_ruby('create_geodesic', 'true');
@@ -153,10 +159,15 @@ function validate_form() {
 }
 
 </script>
+<style>
+	h2 {font-size: 100%;}
+	h3 {font-size: 50%;}
+</style>
 </head>
 <body>
 <img src="../images/title banner.png">
-<h3>Click on Each section to configure your Geodesic and then click Generate</h3>
+<h3>Version 0.1.0</h3>
+<h2>Click on Each section to configure your Geodesic and then click Generate</h2>
 <form name="configure_geodesic" action="" onsubmit="validate_form()" method="post">
 
 <div id="accordion">
@@ -189,19 +200,23 @@ function validate_form() {
   
 	<h3>Section 3 - Geodesic Configuration</h3>
 	<div>
-		<p>Enter amount of Dome to create </p>
-		A number between 0 and 1
+		<p>Enter amount of Dome to create (i.e. 1/2 or 5/8)</p>		
 		<ul>
-			<input type="text" id="fraction" value="0.5">
+			<input type="text" id="fraction_num" value="1"> / <input type="text" id="fraction_den" value="2">
 		</ul>
 		<p>Enter radius of the Dome to create </p>
 		<ul>
 			<input type="text" id="radius" value="150">
 		</ul>
+		
+		<input type="checkbox" id="draw_faces"> Draw Geodesic Faces
+
 	</div>
   
 	<h3>Section 4 - Strut Configuration</h3>
 	<div>
+		<input type="checkbox" id="draw_wood_struts" checked> Draw Struts
+		<input type="checkbox" id="draw_wood_frame" checked> Draw Frame
 		<p>Select strut type</p>
 		<ul>
 			<li>Rectangular</li>
@@ -216,6 +231,7 @@ function validate_form() {
   
 	<h3>Section 5 - Hub Configuration</h3>
 	<div>
+		<input type="checkbox" id="draw_metal_hubs" checked> Draw Metal Hubs
 		<p>Select hub type</p>
 		<ul>
 			<li>Rectangular</li>
@@ -224,7 +240,7 @@ function validate_form() {
 	</div>
 
 </div>
-
+<h2>Run times usually range 30s - 2mins depending on settings</h2>
 <input class="reset" type="submit" value="Generate">
 </form>
 </body>
