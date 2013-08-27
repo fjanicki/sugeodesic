@@ -22,13 +22,13 @@ require 'extensions.rb'
 
 
 # Load the extension.
-extension_name = $fs_strings.GetString("Geodesic Dome Creator")
+extension_name = ("Geodesic Dome Creator")
 
 fs_extension = SketchupExtension.new(
     extension_name, "su_geodesic/actloader.rb")
 
 
-fs_extension.description = $fs_strings.GetString("Use the Geodesic Dome Creator " +
+fs_extension.description = ("Use the Geodesic Dome Creator " +
 	"to create full customized domes in a matter of minutes. Customize the size, " +
 	"frequency, base platonic solid and much more.")
 
