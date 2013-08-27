@@ -1,0 +1,27 @@
+<!-- chatterbox.html -->
+
+<html> <head>
+<script type='text/JavaScript'>
+
+function from_ruby( data ) {
+    var data_div = document.getElementById( 'data_div' );
+
+    if ( data_div == null ) {
+        data_div = document.createElement( 'div' );
+        data_div.id = 'data_div';
+        data_div.style.backgroundColor = '#e0ffff';
+        data_div.innerHTML = 
+            '<center><h1> Status </h1> </center><h3>';
+        document.body.appendChild( data_div );
+    }
+    
+    data_div.innerHTML = data + '</h3><br>';
+}
+
+</script>
+</head>
+<body>
+
+	<h1> Working on your request </h1>
+	Please wait a minute or two (depends on the settings you chose)
+</body> </html>
