@@ -5,18 +5,30 @@
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 
 	<!-- Bootstrap -->
-    <link href="../css/bootstrap.css" rel="stylesheet" media="screen">
+    <link href="../css/bootstrap.min.css" rel="stylesheet" media="screen">
     <link href="../css/slider.css" rel="stylesheet">
-	<script language="javascript">
 	
-		function messageFromSketchup(msg){
-		   alert(msg);
-		}
-
-		  
-		function dataFromSketchup(variable, value){
-		   $('variable').update(value);
-		   alert('got here');
+	<!-- Make the text boxes smaller -->
+	<style>
+		input.text-small {width: 1em;}
+		input.text-med {width: 3em;}
+	</style>
+	
+	<!-- Scripts for Valdiations and Communication with SketchUp -->
+	<script language="javascript">
+		
+		function dataFromSketchup(variable, val){
+			if (variable == "SKMTools_installed" && val != "1") {
+				//Show text so user can see reason why they can't use Materials selectors
+				$('#SKMTools1').text('why?');	
+				$('#SKMTools2').text('why?');	
+				$('#SKMTools3').text('why?');	
+			} else {
+				//Material Browse Option defaults to disabled unless the library is present
+				$('#face_material').removeAttr("disabled"); 
+				$('#strut_material').removeAttr("disabled"); 
+				$('#hub_material').removeAttr("disabled"); 		   
+		   }
 		}
 
 		function call_ruby( callback_name, message ) {
@@ -96,17 +108,21 @@
 
 		function file_check(field, ext_check) {
 			var ext = document.getElementById(field).value;
-			ext = ext.substring(ext.length-3,ext.length);
-			ext = ext.toLowerCase();
+
 			if (ext != "") {
+				ext = ext.substring(ext.length - 3, ext.length);
+				ext = ext.toLowerCase();
 				if(ext != ext_check) {
-					alert('You selected a .'+ext+' file; please select a .'+ext_check+' file instead!');
+					alert('You selected a .' + ext + ' file; please select a .' + ext_check + ' file instead!');
 					return false; 
 				} else {
 					call_ruby(field, document.getElementById(field).value);
 					return true; 
 				}
-			} else return true;	
+			} else {
+				call_ruby(field, "");	// So we can detect no material on the SU end and assign a default color
+				return true;	
+			}
 		}
 		
 		
@@ -180,6 +196,30 @@
 			}	
 		}
 
+		//Used to tell SU that the page is loaded so it can send any extra configuration data
+		function init() {
+			// quit if this function has already been called
+			if (arguments.callee.done) return;
+
+			// flag this function so we don't do the same thing twice
+			arguments.callee.done = true;
+
+			call_ruby('DOMContentLoaded', 1);
+		};
+
+		/* for Mozilla */
+		if (document.addEventListener) {
+		document.addEventListener("DOMContentLoaded", init, false);
+		}
+
+		/* for Internet Explorer */
+		/*@cc_on @*/
+		/*@if (@_win32)
+		document.write("<script defer src=ie_onload.js><"+"/script>");
+		/*@end @*/
+
+		/* for other browsers */
+		window.onload = init;
 	
 	</script>
 	<style>
@@ -190,7 +230,7 @@
 
 <body>
 	<div class="container">
-		<img src="../images/logo.png">
+		<img src="../img/logo.png">
 		<h3>Version 0.2.0</h3>
 		<h2>Click on Each section to configure your Geodesic and then click Generate</h2>
 		<form name="configure_geodesic" action="" onsubmit="validate_form()" method="post">
@@ -213,9 +253,9 @@
 									<td><input type="radio" name="platonic_solid" value="20" checked="checked">Icosahedron</td>
 								</tr>
 								<tr>
-									<td><img src="../images/Tetrahedron.png"></td>
-									<td><img src="../images/Octahedron.png"></td>
-									<td><img src="../images/Icosahedron.png"></td>
+									<td><img src="../img/Tetrahedron.png"></td>
+									<td><img src="../img/Octahedron.png"></td>
+									<td><img src="../img/Icosahedron.png"></td>
 								</tr>
 							</table>
 							</ul>
@@ -233,14 +273,14 @@
 						<div class="well">
 							<p>Select Frequency of Geodesic</p>
 							Enter a number between 1 and 10 (the higher the number the smoother the dome as it uses more struts)
-							<ul><input type="text" id="frequency" value="3"></ul>
+							<ul><input type="text" id="frequency" class="text-small" value="3"></ul>
 							<p>Enter amount of Dome to create (i.e. 1/2 or 5/8)</p>		
 							<ul>
-								<input type="text" id="fraction_num" value="1"> / <input type="text" id="fraction_den" value="2">
+								<input type="text" id="fraction_num" class="text-small" value="1"> / <input type="text" id="fraction_den" class="text-small" value="2">
 							</ul>
 							<p>Enter radius of the Dome to create </p>
 							<ul>
-								<input type="text" id="radius" value="150">
+								<input type="text" id="radius" class="text-med" value="150">
 							</ul>
 							
 							<p><input type="checkbox" id="draw_cpoints"> Draw Geodesic Vertices Points</p>
@@ -259,7 +299,7 @@
 
 							<p><input type="checkbox" id="draw_faces"> Draw Geodesic Faces</p>
 							<ul><table cellpadding=10>
-								<tr><td valign="middle">Select Face Material</td><td valign="bottom"><input type="file" id="face_material" accept="skp"></td></tr>
+								<tr><td valign="middle">Select Face Material</td><td valign="bottom"><input type="file" disabled id="face_material" accept="skp"></td><td><a href="#" data-toggle="popover" id = "SKMTools1" ></a></td></tr>
 								<tr><td valign="middle">Select Face Opacity</td><td valign="top"><input type="text" class="span2" value="" data-slider-min="0" data-slider-max="100" data-slider-step="5" data-slider-value="50" id="slider-face-opacity" ></td></tr>
 							</table></ul>
 						</div>
@@ -277,19 +317,19 @@
 							<input type="checkbox" id="draw_struts" checked> Draw Struts
 							<p>Select strut type</p>
 								<ul><table cellpadding=10>
-									<tr><td valign="middle">Select Strut Material</td><td valign="bottom"><input type="file" id="strut_material" accept="skp"></td></tr>
+									<tr><td valign="middle">Select Strut Material</td><td valign="bottom"><input type="file" disabled id="strut_material" accept="skp"></td><td><a href="#" data-toggle="popover" id = "SKMTools2" ></a></td></tr>
 								</table></ul>
 
 								<p><input type="radio" name="strut_type" value="rectangular" checked="checked">Rectangular</p>
 								<p>Enter dimensions of strut </p>
 								<ul>
-									<p><input type="text" id="thickness" value="1.5" size="5"> x <input type="text" id="depth" value="3.5" size 5></p>
+									<p><input type="text" id="thickness" value="1.5" class="text-med"> x <input type="text" id="depth" value="3.5" class="text-med"></p>
 									<p><input type="checkbox" id="draw_wood_frame" checked> Draw Frame</p>
 								</ul><br>
 								<p><input type="radio" name="strut_type" value="cylindrical" >Cylinder</p>
 								<p>Enter radius of strut </p>
 								<ul>
-									<input type="text" id="radius" value="3" size="5">
+									<input type="text" id="radius" value="3" class="text-med">
 								</ul>
 							</ul>
 						</div>
@@ -308,13 +348,13 @@
 							<p>Select hub type</p>
 							<ul>
 								<ul><table cellpadding=10>
-									<tr><td valign="middle">Select Hub Material</td><td valign="bottom"><input type="file" id="hub_material" accept="skp"></td></tr>
+									<tr><td valign="middle">Select Hub Material</td><td valign="bottom"><input type="file" disabled id="hub_material" accept="skp"></td><td><a href="#" data-toggle="popover" id = "SKMTools3" ></a></td></tr>
 								</table></ul>
 								<p><input type="radio" name="hub_type" value="Cylindrical" checked="checked">Cylindrical</p>
 								<p><input type="radio" name="hub_type" value="Spherical">Sphere</p>
 								<p>Enter radius of sphere hub</p>
 								<ul>
-									<input type="text" id="sphere_radius" value="5" size="5">
+									<input type="text" id="sphere_radius" value="5" class="text-med">
 								</ul>
 							</ul>  
 						</a>
@@ -335,6 +375,20 @@
 			  formater: function(value) {
 				return 'Current value: '+value+'%';
 			  }
+			});
+			
+			//TODO work out how to consolodate these (they are the same)
+			$('#SKMTools1').popover({
+				trigger:'click', placement:'right',html:true,title:'SKM Tools Plugin needed to assign Materials',
+				content:'Please download and install SKM Tools Plugin from <a href="http://rhin.crai.archi.fr/rld/plugin_details.php?id=792" target="_blank">here</a> and reload SketchUp'
+			});
+			$('#SKMTools2').popover({
+				trigger:'click', placement:'right',html:true,title:'SKM Tools Plugin needed to assign Materials',
+				content:'Please download and install SKM Tools Plugin from <a href="http://rhin.crai.archi.fr/rld/plugin_details.php?id=792" target="_blank">here</a> and reload SketchUp'
+			});
+			$('#SKMTools3').popover({
+				trigger:'click', placement:'right',html:true,title:'SKM Tools Plugin needed to assign Materials',
+				content:'Please download and install SKM Tools Plugin from <a href="http://rhin.crai.archi.fr/rld/plugin_details.php?id=792" target="_blank">here</a> and reload SketchUp'
 			});
 		});
 		

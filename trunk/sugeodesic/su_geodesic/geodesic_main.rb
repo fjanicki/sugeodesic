@@ -18,13 +18,6 @@
 # First we pull in the standard API hooks.
 require 'sketchup.rb'
 
-#Check for SKMtools, if it exists, use it.
-#if (File.exists?('../SKMtools_loader'))
-	puts 'Library found'
-	require 'SKMtools\skm_class.rb'
-#else
-#	puts 'No library found'
-#end
 
 # Add a menu item to launch our plug-in.
 UI.menu("PlugIns").add_item("Geodesic Creator") {
@@ -110,6 +103,13 @@ module Geodesic
 			
 			#tolerance factor to circumvent small number errors
 			@g_tolerance = 0.5
+			
+
+			#Check the SKM Tools are enabled (Webdialog functionality is enabled if present)
+			@SKMTools_installed = 0
+			if (Sketchup.find_support_file("SKMtools_loader.rb","Plugins") != nil)
+				@SKMTools_installed = 1
+			end
 		end
 		
 		
@@ -120,21 +120,14 @@ module Geodesic
 			html_path = Sketchup.find_support_file "su_geodesic/html/geodesic.html" ,"Plugins"
 			dialog.set_file(html_path)
 			dialog.show
-			 
+			
 			#Add handlers for all of the variable changes from the HTML side 
-			#def add_handler(dialog, handle, type, mapping)
-			#add_handler(dialog, "platonic_solid", "Int", @g_platonic_solid)
-			#add_handler(dialog, "frequency", "Int", @g_frequency)
-			#add_handler(dialog, "fraction_num", "Int", @g_fraction_num)
-			#add_handler(dialog, "fraction_den", "Int", @g_fraction_den)
-			#add_handler(dialog, "radius", "Float", @g_radius)
-			#add_handler(dialog, "thickness", "Float", @wood_strut_thickness)
-			#add_handler(dialog, "depth", "Float", @wood_strut_depth)
-			#add_handler(dialog, "draw_edges", "Int", )
-			#add_handler(dialog, "draw_faces", "Int", @draw_tessellated_faces)
-			#add_handler(dialog, "draw_wood_struts", "Int", @draw_wood_struts)
-			#add_handler(dialog, "draw_metal_hubs", "Int", @draw_metal_hubs)
-			#add_handler(dialog, "draw_wood_frame", "Int", @draw_wood_frame)
+
+			dialog.add_action_callback("DOMContentLoaded") { |dlg, msg|
+				#Once page is loaded send extra configuration
+				script = 'dataFromSketchup("SKMTools_installed", ' + @SKMTools_installed.to_s() + ');'
+				dialog.execute_script(script) 
+			}
 			dialog.add_action_callback("platonic_solid") do |dlg, msg|
 				@g_platonic_solid = Integer(msg) 
 			end
@@ -162,27 +155,42 @@ module Geodesic
 			dialog.add_action_callback("face_material") { |dlg, msg|
 				filepath = msg
 				filepath = msg.gsub('\\','/')
-				if File.exists?(filepath)
-					@face_material = SKM.import(filepath)
+				if (filepath == "")
+					@face_material = [255, 255, 255]
+				else
+					if File.exists?(filepath)
+						@face_material = SKM.import(filepath)
+					end
 				end
 			}
 			dialog.add_action_callback("face_opacity") do |dlg, msg|
-				@face_material.alpha = Float(msg) / 100
-			end
-			dialog.add_action_callback("strut_material") do |dlg, msg|
-				filepath = msg
-				filepath = msg.gsub('\\','/')
-				if File.exists?(filepath)
-					@strut_material = SKM.import(filepath)
+				if (@face_material.class != Array)
+					@face_material.alpha = Float(msg) / 100
 				end
 			end
-			dialog.add_action_callback("hub_material") do |dlg, msg|
+			dialog.add_action_callback("strut_material") { |dlg, msg|
 				filepath = msg
 				filepath = msg.gsub('\\','/')
-				if File.exists?(filepath)
-					@hub_material = SKM.import(filepath)
+				if (filepath == "")
+					@strut_material = [255, 215, 0]	
+				else
+					if File.exists?(filepath)
+						@strut_material = SKM.import(filepath)
+					end
 				end
-			end
+			}
+			dialog.add_action_callback("hub_material") { |dlg, msg|
+				filepath = msg
+				filepath = msg.gsub('\\','/')
+				if (filepath == "")
+					@hub_material = [255, 255, 255]				
+				else
+					if File.exists?(filepath)	#Only assign alpha if a material was assigned (not a default color)
+						@hub_material = SKM.import(filepath)
+					end
+				end
+			}
+			
 			dialog.add_action_callback("draw_struts") do |dlg, msg|
 				@draw_struts = Integer(msg) 
 			end
@@ -537,17 +545,18 @@ module Geodesic
 			c1_face = hub.entities.add_face circle1
 			c1_face.followme circle2
 			smooth(hub)
-			hub.to_a.each{|f|
-				if (f.class == Sketchup::Face)
-					f.material = @hub.material
-				end
-				#f.entities.each{|ff|edges << ff if ff.class == Sketchup::Face}if f.class == Sketchup::Group
+			
+			#cycle through the sphere faces and assign material to all
+			faces = []
+			hub.entities.each{|f|
+				faces << f if f.class == Sketchup::Face
+			}
+			
+			faces.each { |face|
+				face.material = @hub_material
+				face_back_material = @hub_material
 			}
 			hub_comp = hub.to_component
-			#hub_comp.material = @hub_material
-			#hub_comp.back_material = @hub_material
-			faces = []
-
 			
 			#get the definition of the hub so we can make more
 			hub_def = hub_comp.definition
@@ -625,7 +634,16 @@ module Geodesic
 						inner_end_face = hub.entities.add_face inner_circle
 						hub.entities.erase_entities inner_end_face		#remove the inner face we just added (need to do this to create cylinder end
 						outer_end_face.pushpull -@metal_hub_depth_depth, false
+						#cycle through the sphere faces and assign material to all
+						faces = []
+						hub.entities.each{|f|
+							faces << f if f.class == Sketchup::Face
+						}
 						
+						faces.each { |face|
+							face.material = @hub_material
+							face_back_material = @hub_material
+						}						
 						
 						#p = Geom::Point3d.new(@g_center)	# rotate from the origin
 						#p = Geom::Point3d.new([0, 0, 0])	
