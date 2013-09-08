@@ -18,6 +18,14 @@
 # First we pull in the standard API hooks.
 require 'sketchup.rb'
 
+#Check for SKMtools, if it exists, use it.
+#if (File.exists?('../SKMtools_loader'))
+	puts 'Library found'
+	require 'SKMtools\skm_class.rb'
+#else
+#	puts 'No library found'
+#end
+
 # Add a menu item to launch our plug-in.
 UI.menu("PlugIns").add_item("Geodesic Creator") {
   
@@ -45,10 +53,19 @@ module Geodesic
 			@g_center = Geom::Point3d.new ([0, 0, -@g_radius + 2 * @g_radius * @g_fraction])
 			
 			@draw_primitive_solid_faces = 0
+			@draw_primative_vertex_points = 1
 			@primitive_face_material = [255, 255, 255]
 
-			@draw_tesselated_faces = 0
-			@tesselated_face_material = [255, 255, 255]
+			@draw_tessellated_faces = 0
+			@face_material = Sketchup.active_model.materials.add "face_material"
+			
+			#Generic Hub configuration
+			@draw_hubs = 1
+			@hub_material = Sketchup.active_model.materials.add "hub_material"
+			
+			#Sphere hub configuration
+			@draw_sphere_hubs = 1
+			@sphere_hub_radius = 5
 			
 			#Metal hub configuration
 			@draw_metal_hubs = 1
@@ -56,13 +73,21 @@ module Geodesic
 			@metal_hub_outer_thickness = 0.25
 			@metal_hub_depth_depth = 4
 
+			#Generic Strut configuration
+			@draw_struts = 1
+			@strut_material = Sketchup.active_model.materials.add "strut_material"
+			
 			#Wood strut configuration
 			@draw_wood_struts = 1
 			@wood_strut_dist_from_hub = 3
 			@wood_strut_thickness = 1.5
 			@wood_strut_depth = 3.5
-			@wood_strut_material = Sketchup::Color.new(255,215,0)
 
+			#Cylinder strut configuration
+			@draw_cylinder_struts = 1
+			@cylinder_strut_dist_from_hub = 4
+			@cylinder_strut_radius = 2
+				
 			#Wood frame configuration
 			@draw_wood_frame = 1
 			@frame_separation = 12
@@ -76,7 +101,7 @@ module Geodesic
 			
 			#Dome shape data is stored in these arrays
 			@strut_hubs = []
-			@struts = []
+			@all_edges = []
 			@frame_struts = []
 
 			#variables for statistics timer
@@ -106,7 +131,7 @@ module Geodesic
 			#add_handler(dialog, "thickness", "Float", @wood_strut_thickness)
 			#add_handler(dialog, "depth", "Float", @wood_strut_depth)
 			#add_handler(dialog, "draw_edges", "Int", )
-			#add_handler(dialog, "draw_faces", "Int", @draw_tesselated_faces)
+			#add_handler(dialog, "draw_faces", "Int", @draw_tessellated_faces)
 			#add_handler(dialog, "draw_wood_struts", "Int", @draw_wood_struts)
 			#add_handler(dialog, "draw_metal_hubs", "Int", @draw_metal_hubs)
 			#add_handler(dialog, "draw_wood_frame", "Int", @draw_wood_frame)
@@ -132,16 +157,69 @@ module Geodesic
 				@wood_strut_depth = Float(msg) 
 			end		
 			dialog.add_action_callback("draw_faces") do |dlg, msg|
-				@draw_tesselated_faces = Integer(msg) 
+				@draw_tessellated_faces = Integer(msg) 
 			end
-			dialog.add_action_callback("draw_wood_struts") do |dlg, msg|
-				@draw_wood_struts = Integer(msg) 
+			dialog.add_action_callback("face_material") { |dlg, msg|
+				filepath = msg
+				filepath = msg.gsub('\\','/')
+				if File.exists?(filepath)
+					@face_material = SKM.import(filepath)
+				end
+			}
+			dialog.add_action_callback("face_opacity") do |dlg, msg|
+				@face_material.alpha = Float(msg) / 100
+			end
+			dialog.add_action_callback("strut_material") do |dlg, msg|
+				filepath = msg
+				filepath = msg.gsub('\\','/')
+				if File.exists?(filepath)
+					@strut_material = SKM.import(filepath)
+				end
+			end
+			dialog.add_action_callback("hub_material") do |dlg, msg|
+				filepath = msg
+				filepath = msg.gsub('\\','/')
+				if File.exists?(filepath)
+					@hub_material = SKM.import(filepath)
+				end
+			end
+			dialog.add_action_callback("draw_struts") do |dlg, msg|
+				@draw_struts = Integer(msg) 
+			end
+			dialog.add_action_callback("draw_hubs") do |dlg, msg|
+				@draw_hubs = Integer(msg) 
 			end
 			dialog.add_action_callback("draw_metal_hubs") do |dlg, msg|
 				@draw_metal_hubs = Integer(msg) 
 			end
 			dialog.add_action_callback("draw_wood_frame") do |dlg, msg|
 				@draw_wood_frame = Integer(msg) 
+			end
+			dialog.add_action_callback("draw_cpoints") do |dlg, msg|
+				@draw_primative_vertex_points = Integer(msg) 
+			end
+			dialog.add_action_callback("sphere_radius") do |dlg, msg|
+				@sphere_hub_radius = Float(msg) 
+			end
+			dialog.add_action_callback("strut_type") do |dlg, msg|
+				if (msg == "rectangular")
+					@draw_wood_struts = 1					
+					@draw_cylinder_struts = 0
+				end
+				if (msg == "cylindrical")
+					@draw_wood_struts = 0					
+					@draw_cylinder_struts = 1
+				end
+			end
+			dialog.add_action_callback("hub_type") do |dlg, msg|
+				if (msg == "Spherical")
+					@draw_sphere_hubs = 1
+					@draw_metal_hubs = 0
+				end
+				if (msg == "Cylindrical")
+					@draw_sphere_hubs = 0
+					@draw_metal_hubs = 1
+				end
 			end
 			
 						
@@ -164,6 +242,7 @@ module Geodesic
 				
 				#The geodesic is configured, now draw it
 				#t2 = Thread.new{draw()}
+				dialog.close	
 				draw()
 				#Wait until complete before printing statistics
 				#t2.join
@@ -174,7 +253,6 @@ module Geodesic
 				
 				#Close the dialogs
 				processing.close
-				dialog.close	
 				
 			end
 		end
@@ -198,6 +276,7 @@ module Geodesic
 
 				#Update fraction in case it was changed in the configuration
 				@g_fraction = @g_fraction_num.to_f / @g_fraction_den.to_f
+				@g_center = Geom::Point3d.new ([0, 0, -@g_radius + 2 * @g_radius * @g_fraction])
 
 				#Create the base Geodesic Dome points
 				if (@g_platonic_solid == 4)
@@ -210,13 +289,15 @@ module Geodesic
 					create_icosahedron()
 				end
 				
-				if (@draw_metal_hubs == 1)
-					add_metal_hubs()
-				end
+				#Add_hubs
+				add_hubs()
 				
-				#Add wooden struts
-				if(@draw_wood_struts == 1)
-					add_wood_struts()
+				#Add struts			
+				add_struts()
+
+				#Add vertex construction points
+				if (@draw_primative_vertex_points == 1)
+					add_vertex_points()
 				end
 				
 				if(@draw_wood_frame == 1)
@@ -229,7 +310,7 @@ module Geodesic
 		
 		def statistics()
 			num_hubs = @strut_hubs.size
-			num_struts = @struts.size
+			num_struts = @all_edges.size
 			num_frame_struts = @frame_struts.size
 			
 			print("Statistics\n^^^^^^^^^^\n\n")
@@ -273,7 +354,7 @@ module Geodesic
 			print("\nProcessing Time: #{hour_str}#{min_str}#{sec_str}\n")
 		end
 		
-		#Creates the points of the tesselated tetrahedron
+		#Creates the points of the tessellated tetrahedron
 		#the points from this are used to draw all other aspects of the dome
 		def create_tetrahedron()
 
@@ -293,24 +374,24 @@ module Geodesic
 			tetra_faces = []
 			c = [0, 1, 3, 1, 2, 3, 2, 0, 3, 0, 1, 2] 
 			
-			for i in 0..4	
+			for i in 0..3	
 				d = i * 3
 				j = c[d]
 				k = c[d + 1]
 				l = c[d + 2]
 				# draw the triangles of the tetrahedron
 				if(@draw_primitive_solid_faces == 1)
-					if (all_pos_z([tetraahedron[j], tetrahedron[k], tetrahedron[l]]) == 0)
-						tetra_faces.push(@geodesic.entities.add_face(tetraahedron[j], tetraahedron[k], tetraahedron[l]))
+					if (all_pos_z([tetrahedron[j], tetrahedron[k], tetrahedron[l]]) == 0)
+						tetra_faces.push(@geodesic.entities.add_face(tetrahedron[j], tetrahedron[k], tetrahedron[l]))
 					end
 				end
 				#decompose each face of the tetrahedron
-				tesselate(tetrahedron[j], tetraahedron[k], tetrahedron[l])
+				tessellate(tetrahedron[j], tetrahedron[k], tetrahedron[l])
 			end	
 			
 		end
 	
-		#Creates the points of the tesselated octahedron
+		#Creates the points of the tessellated octahedron
 		#the points from this are used to draw all other aspects of the dome
 		def create_octahedron()
 			#Get the length of a side
@@ -337,16 +418,16 @@ module Geodesic
 				l = c[d + 2]
 				# draw the triangles of the octahedron
 				if(@draw_primitive_solid_faces == 1)
-					if (all_pos_z([octaahedron[j], octaahedron[k], octaahedron[l]]) == 0)
+					if (all_pos_z([octahedron[j], octahedron[k], octahedron[l]]) == 0)
 						icosa_faces.push(@geodesic.entities.add_face(octahedron[j], octahedron[k], octahedron[l])) 
 					end
 				end
 				#decompose each face of the octahedron
-				tesselate(octahedron[j], octahedron[k], octahedron[l])
+				tessellate(octahedron[j], octahedron[k], octahedron[l])
 			end							
 		end
 
-		#Creates the points of the tesselated icosahedron
+		#Creates the points of the tessellated icosahedron
 		#the points from this are used to draw all other aspects of the dome
 		def create_icosahedron()
 			# Get handles to our model and the Entities collection it contains.
@@ -384,7 +465,7 @@ module Geodesic
 					
 			icosa_faces = []			
 			c = [1, 6, 9, 1, 2, 6, 2, 6, 8, 6, 7, 8, 6, 7, 9, 1, 9, 10, 1, 5,  10, 1, 2, 5, 2, 5, 11, 2, 8, 11, 4, 5, 10, 4, 5, 11, 0, 4, 10, 0, 9, 10, 0, 7, 9, 3, 7, 8, 0, 3, 7, 0, 3, 4, 3,4, 11, 3, 8, 11] 			
-			for i in 0..19	
+			for i in 0..19
 				d = i * 3
 				j = c[d]
 				k = c[d + 1]
@@ -396,7 +477,7 @@ module Geodesic
 					end
 				end
 				#decompose each face of the icosahedron
-				tesselate(icosahedron[j], icosahedron[k], icosahedron[l])
+				tessellate(icosahedron[j], icosahedron[k], icosahedron[l])
 			end					
 		end
 		
@@ -408,41 +489,239 @@ module Geodesic
 			end
 		end
 		
+
+		def isPointUnique(array, pnt)
+			array.each_with_index { |p, index|
+				v = Geom::Vector3d.new (pnt - p);
+				if (v.length < @g_tolerance)
+					return index;
+				end
+			}
+			return -1
+		end
+
+		def add_hubs()
+			if (@draw_hubs == 1)
+				if (@draw_sphere_hubs == 1)
+					add_sphere_hubs()
+				end
+				
+				if (@draw_metal_hubs == 1)
+					add_metal_hubs()
+				end
+			end
+		end
+
+		def add_vertex_points()
+			u_hubs = []
+		
+			#Create a hub for each point
+			@primitive_points.each { |c|
+				#only draw hubs at unique points (the primitive_points list contains duplicates)
+				if (isPointUnique(u_hubs, c) == -1)
+					u_hubs.push(c)
+					if (c[2] > -@g_tolerance)
+						@geodesic.entities.add_cpoint c
+					end
+				end
+			}		
+		end
+		
+		def add_sphere_hubs()
+			u_hubs = []
+
+			#Create a hub
+			hub = @geodesic.entities.add_group
+			circle1 = hub.entities.add_circle([0,0,0], Geom::Vector3d.new([1, 0, 0]), @sphere_hub_radius)				
+			circle2 = hub.entities.add_circle([0,0,0], Geom::Vector3d.new([0, 1, 0]), @sphere_hub_radius)	
+			c1_face = hub.entities.add_face circle1
+			c1_face.followme circle2
+			smooth(hub)
+			hub.to_a.each{|f|
+				if (f.class == Sketchup::Face)
+					f.material = @hub.material
+				end
+				#f.entities.each{|ff|edges << ff if ff.class == Sketchup::Face}if f.class == Sketchup::Group
+			}
+			hub_comp = hub.to_component
+			#hub_comp.material = @hub_material
+			#hub_comp.back_material = @hub_material
+			faces = []
+
+			
+			#get the definition of the hub so we can make more
+			hub_def = hub_comp.definition
+			
+			#Create a hub for each point
+			@primitive_points.each { |c|
+				#only draw hubs at unique points (the primitive_points list contains duplicates				
+				if (isPointUnique(u_hubs, c) == -1)
+					u_hubs.push(c)
+					if (c[2] > -@g_tolerance)
+						#Create some copies of our hub component
+						trans = Geom::Transformation.translation(c)
+						new_hub = @geodesic.entities.add_instance hub_def, trans
+
+						#Add hub to the global hub list
+						@strut_hubs.push(new_hub)
+					end
+				end
+			}
+
+			#Delete our master component
+			@geodesic.entities.erase_entities hub_comp
+		end
+		
+		#Smooth the edges of a shape
+		def smooth(shape)
+			edges = []
+			shape.to_a.each{|e|
+				edges << e if e.class == Sketchup::Edge
+				e.entities.each{|ee|edges << ee if ee.class == Sketchup::Edge}if e.class == Sketchup::Group
+			}
+			edges.each{|edge|
+			ang = edge.faces[0].normal.angle_between(edge.faces[1].normal)
+			   if edge.faces[1]
+				 edge.soft = true if ang < 45.degrees
+				 edge.smooth = true if ang < 45.degrees
+			   end
+			}
+		end
+		
+
+		
 		def add_metal_hubs()
+			u_hubs = []
+
 			#Calculate the inner radius
 			inner_radius = @metal_hub_outer_radius - @metal_hub_outer_thickness
 
-			#Create a hub for each point
-			@primitive_points.each_with_index { |c, index|
-				#Draw only the positive hub for a dome
-				if (c[2] > -@g_tolerance)
-					hub = @geodesic.entities.add_group
-					outer_circle = hub.entities.add_circle(c, Geom::Vector3d.new(@g_center.vector_to(c)), @metal_hub_outer_radius)				
-					inner_circle = hub.entities.add_circle(c, Geom::Vector3d.new(@g_center.vector_to(c)), inner_radius)
-					outer_end_face = hub.entities.add_face outer_circle
-					inner_end_face = hub.entities.add_face inner_circle
-					hub.entities.erase_entities inner_end_face		#remove the inner face we just added (need to do this to create cylinder end
-					outer_end_face.pushpull -@metal_hub_depth_depth, false
+			#TODO: having trouble getting the rotation right on the component version
+			#hub = @geodesic.entities.add_group
+			#outer_circle = hub.entities.add_circle([0, 0, 0], Geom::Vector3d.new([0, 0, 1]), @metal_hub_outer_radius)				
+			#inner_circle = hub.entities.add_circle([0, 0, 0], Geom::Vector3d.new([0, 0, 1]), inner_radius)
+			#outer_end_face = hub.entities.add_face outer_circle
+			#inner_end_face = hub.entities.add_face inner_circle
+			#hub.entities.erase_entities inner_end_face		#remove the inner face we just added (need to do this to create cylinder end
+			#outer_end_face.pushpull @metal_hub_depth_depth, false
+			#hub_comp = hub.to_component
+			
+			#get the definition of the hub so we can make more
+			#hub_def = hub_comp.definition
 
-					#Add hub to the global hub list
-					@strut_hubs.push(hub)
+			
+			#Create a hub for each point
+			@primitive_points.each_with_index { |i, index|
+				if (isPointUnique(u_hubs, i) == -1)
+					u_hubs.push(i)
+					#Draw only the positive hub for a dome
+					if (i[2] > -@g_tolerance)
+						#Create some copies of our hub component
+
+						hub = @geodesic.entities.add_group
+						outer_circle = hub.entities.add_circle(i, Geom::Vector3d.new(@g_center.vector_to(i)), @metal_hub_outer_radius)				
+						inner_circle = hub.entities.add_circle(i, Geom::Vector3d.new(@g_center.vector_to(i)), inner_radius)
+						outer_end_face = hub.entities.add_face outer_circle
+						inner_end_face = hub.entities.add_face inner_circle
+						hub.entities.erase_entities inner_end_face		#remove the inner face we just added (need to do this to create cylinder end
+						outer_end_face.pushpull -@metal_hub_depth_depth, false
+						
+						
+						#p = Geom::Point3d.new(@g_center)	# rotate from the origin
+						#p = Geom::Point3d.new([0, 0, 0])	
+
+												
+						#Create a copy, but don't move it (it needs rotating first
+						#trans = Geom::Transformation.translation([0,0,0])
+						#new_hub = @geodesic.entities.add_instance hub_def, trans
+						
+						#Create a vector pointing up the Z axis
+						#z_vec = Geom::Vector3d.new [0, 0, 1]
+						
+						#Turn our target point into a unit vector
+						#v = Geom::Vector3d.new i[0], i[1], i[2]
+						#v.length = 1
+						
+						#v_x = Geom::Vector3d.new i[0], 0, i[2]
+						#v_y = Geom::Vector3d.new 0, i[1], i[2]
+						
+						#Get the angle (theta) between the Z-axis and the vector
+						#ang_x = (z_vec.angle_between v_x)
+						#ang_y = (z_vec.angle_between v_y)
+						
+						#Create the rotation matrix
+						#c = Math::cos(theta)
+						#s = Math::sin(-theta)
+						#t = 1 - Math::cos(theta)
+						#r = [t * v.x * v.x + c, t * v.x * v.y - s * v.z, t * v.x * v.z + s * v.y, 0, +
+						#	t * v.x * v.y + s * v.z, t * v.y * v.y + c, t * v.y * v.z - s * v.x, 0, +
+						#	t * v.x * v.z - s * v.y, t * v.y * v.z + s * v.x, t * v.z * v.z + c, +
+						#	0, 0, 0, 0, 1]
+		
+											
+						#r1 = Geom::Transformation.new(r)
+						#Create a rotation transform and rotate the object
+						#r1 = Geom::Transformation.rotation(p, [0,1,0], ang_x)
+						#r2 = Geom::Transformation.rotation(p, [1,0,0], ang_y)
+						#t = r1 * r2
+						#new_hub.transform!(t)
+						
+						#Translate to final destination
+						#t = Geom::Transformation.translation(i)
+						#new_hub.transform!(t)
+						
+						#Add hub to the global hub list
+						#@strut_hubs.push(new_hub)
+
+						#Add hub to the global hub list
+						@strut_hubs.push(hub)
+					end
 				end
 			}	
 		end
 
-		def add_wood_struts()
-			#Add the struts
-			@strut_points.each { |c|
-				@struts.push(add_wood_strut(@primitive_points[c[0]], @primitive_points[c[1]], @wood_strut_dist_from_hub))
-
-				#Add the hub plates
-				#This currently relies on being here so that it gets the correct faces passed to it.
-				if (@draw_metal_hubs == 1)
-	#				add_hub_plates(strut_faces, @strut_hubs[c[0]], @strut_hubs[c[1]], strut_dist_from_hub)
+		def isLineUnique(array, line)
+			array.each_with_index { |p, index|
+				v1_1 = Geom::Vector3d.new (line[0] - p[0]);
+				v1_2 = Geom::Vector3d.new (line[1] - p[0]);
+				v2_1 = Geom::Vector3d.new (line[1] - p[1]);
+				v2_2 = Geom::Vector3d.new (line[0] - p[1]);
+				#Check the points in both orientations
+				if (v1_1.length < @g_tolerance && v2_1.length < @g_tolerance)
+					return index;
 				end
-			}	
+				if (v1_2.length < @g_tolerance && v2_2.length < @g_tolerance)
+					return index;
+				end
+			}
+			return -1;
 		end
 		
+		def add_struts()
+			@u_struts = []
+			#Add the struts
+			@strut_points.each { |c|
+				if (isLineUnique(@u_struts, [@primitive_points[c[0]], @primitive_points[c[1]]]) == -1)
+					@u_struts.push([@primitive_points[c[0]], @primitive_points[c[1]]])
+					
+					if (@draw_struts == 1)
+						if (@draw_wood_struts == 1)
+							@all_edges.push(add_wood_strut(@primitive_points[c[0]], @primitive_points[c[1]], @wood_strut_dist_from_hub))
+						end
+						
+						if (@draw_cylinder_struts == 1)
+							@all_edges.push(add_cylinder_strut(@primitive_points[c[0]], @primitive_points[c[1]]))				
+						end
+					end
+					#Add the hub plates
+					#This currently relies on being here so that it gets the correct faces passed to it.
+					if (@draw_metal_hubs == 1)
+						#add_hub_plates(strut_faces, @strut_hubs[c[0]], @strut_hubs[c[1]], strut_dist_from_hub)
+					end
+				end
+			}	
+		end
+				
 		def add_wood_frame()
 		
 			@triangle_points.each { |pts|
@@ -483,8 +762,7 @@ module Geodesic
 					pt_a = pt[0]
 					pt_b = pt[2]
 					pt_c = pt[4]
-					pt_d = pt[6]
-					
+					pt_d = pt[6]					
 				else
 					pt_a = pt[1]
 					pt_b = pt[3]	
@@ -558,14 +836,12 @@ module Geodesic
 			face[5] = solid.entities.add_face pts[4], pts[5], pts[7], pts[6]	
 			
 			#set the color of the solid
-			color = @wood_strut_material
-			face[0].material = color; face[0].back_material = color;
-			face[1].material = color; face[1].back_material = color;
-			face[2].material = color; face[2].back_material = color;
-			face[3].material = color; face[3].back_material = color;
-			face[4].material = color; face[4].back_material = color;
-			face[5].material = color; face[5].back_material = color;
-			
+			color = @strut_material
+			for c in 0..5
+				face[c].material = color
+				face[c].back_material = color		
+			end
+
 			return solid
 		end
 		
@@ -659,7 +935,7 @@ module Geodesic
 		
 		# Given 3 points that make up a triangle, decompose the triangle into 
 		# [@g_frequency] smaller triangles along each side
-		def tesselate (p1, p2, p3)
+		def tessellate (p1, p2, p3)
 			c  = 0
 			order = @g_frequency + 1
 			row = 0
@@ -670,7 +946,7 @@ module Geodesic
 			while c < order
 			
 				if (order == 1)
-					@primitive_points.push(Geom::Point3d.new ($p_s[0], $p_s[1], $p_s[2]))	#last point is already the right length
+					@primitive_points.push(Geom::Point3d.new([$p_s[0], $p_s[1], $p_s[2]]))	
 				else 
 					co1 = c.to_f / (order - 1)
 					x = $p_s[0] + ($p_e[0] - $p_s[0]) * co1
@@ -682,11 +958,11 @@ module Geodesic
 					ratio = @g_radius.to_f / length
 					v = @g_center.vector_to(p)
 					v.length = @g_radius
+					
 					@primitive_points.push(Geom::Point3d.new (extend_line(@g_center, p, @g_radius)))
 				end
 				p_num = @primitive_points.size() - 1
 			
-				#TODO Remove duplicate points in @primitive_points and @strut_points
 				if (c > 0)
 					if (@primitive_points[p_num][2] >= -1 * @g_tolerance && @primitive_points[p_num - 1][2] >= -1 * @g_tolerance)
 						@strut_points.push([p_num - 1, p_num])
@@ -702,20 +978,20 @@ module Geodesic
 					end
 
 					if (@primitive_points[p_num - order][2] >= -@g_tolerance && @primitive_points[p_num - order - 1][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance)
-						if (@draw_tesselated_faces == 1)
+						if (@draw_tessellated_faces == 1)
 							face = @geodesic.entities.add_face @primitive_points[p_num - order], @primitive_points[p_num - order - 1], @primitive_points[p_num]	
-							face.material = @tesselated_face_material
-							face.back_material = @tesselated_face_material
+							face.material = @face_material
+							face.back_material = @face_material
 						end
 						@triangle_points.push([p_num - order, p_num - order - 1, p_num])
 					end
 
 					if (c > 0)
 						if (@primitive_points[p_num - order - 1][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance && @primitive_points[p_num - 1][2] >= -@g_tolerance)
-							if (@draw_tesselated_faces == 1)
+							if (@draw_tessellated_faces == 1)
 								face = @geodesic.entities.add_face @primitive_points[p_num - order - 1], @primitive_points[p_num], @primitive_points[p_num - 1]		
-								face.material = @tesselated_face_material
-								face.back_material = @tesselated_face_material
+								face.material = @face_material
+								face.back_material = @face_material
 							end
 							@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
 						end
@@ -733,8 +1009,38 @@ module Geodesic
 				end
 				p_num += 1
 			end
+			
 		end
+		
+		def add_cylinder_strut(p1, p2)
 
+			#create a group for our strut
+			strut = @geodesic.entities.add_group
+
+			#Create a vector of inset length (this will be how far back from the hub the strut starts
+			v1 = Geom::Vector3d.new(p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
+			v1.length = @cylinder_strut_dist_from_hub
+			
+			#calculate the inset point ends 
+			pt1 = Geom::Point3d.new(p1[0] + v1[0], p1[1] + v1[1], p1[2] + v1[2])
+			pt2 = Geom::Point3d.new(p2[0] - v1[0], p2[1] - v1[1], p2[2] - v1[2])
+
+			#create some vectors so that we can create the 4 points that will make the plane of strut at correct orientation
+			v2 = Geom::Vector3d.new(@g_center.vector_to(p1))
+			v3 = Geom::Vector3d.new(@g_center.vector_to(p2))
+			v4 = Geom::Vector3d.new(p2.vector_to(p1))	
+			
+			circle = strut.entities.add_circle pt1, pt2.vector_to(p2), @cylinder_strut_radius
+			circle_face = strut.entities.add_face circle
+
+			color = @strut_material
+			circle_face.material = color; circle_face.back_material = color;
+
+			dist = pt1.distance(pt2)
+			circle_face.pushpull dist, false
+
+		end
+		
 		# Creates a strut orientated to face out from the origin
 		# The ends are [distance] back from the points [p1, p2] to accommodate hubs
 		# The ends are also angled to allow closer mounting to the hubs
@@ -787,13 +1093,11 @@ module Geodesic
 			face[5] = strut.entities.add_face pt3, pt5, pt9, pt7	#side that hub will connect to hub
 			
 			#set the color of the strut
-			color = @wood_strut_material
-			face[0].material = color; face[0].back_material = color;
-			face[1].material = color; face[1].back_material = color;
-			face[2].material = color; face[2].back_material = color;
-			face[3].material = color; face[3].back_material = color;
-			face[4].material = color; face[4].back_material = color;
-			face[5].material = color; face[5].back_material = color;
+			color = @strut_material
+			for c in 0..5
+				face[c].material = color;
+				face[c].back_material = color			
+			end
 			
 			#return the side faces that will be used to fix the hub side plates to
 			return face[3], face[5]
