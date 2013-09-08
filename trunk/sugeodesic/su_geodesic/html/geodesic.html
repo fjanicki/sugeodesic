@@ -371,11 +371,14 @@
 	<script src="../js/bootstrap-slider.js"></script>
 	<script>
 		$(function(){
+			//Update Tooltip of the current opacity value
 			$('#slider-face-opacity').slider({
 			  formater: function(value) {
-				return 'Current value: '+value+'%';
+				return 'Current value: ' + value + '%';
 			  }
 			});
+			//Keep a copy of the opacity value so that it can be sent to SketchUp when the Generate button is pressed
+			var face_opacity = $('#slider-face-opacity').slider().data('slider');
 			
 			//TODO work out how to consolodate these (they are the same)
 			$('#SKMTools1').popover({
@@ -392,7 +395,6 @@
 			});
 		});
 		
-		var face_opacity = $('#slider-face-opacity').slider().data('slider');
 			
 	</script>
 
