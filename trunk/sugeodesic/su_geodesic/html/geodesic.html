@@ -16,7 +16,8 @@
 	
 	<!-- Scripts for Valdiations and Communication with SketchUp -->
 	<script language="javascript">
-		
+		var face_opacity;
+			
 		function dataFromSketchup(variable, val){
 			if (variable == "SKMTools_installed" && val != "1") {
 				//Show text so user can see reason why they can't use Materials selectors
@@ -377,8 +378,8 @@
 				return 'Current value: ' + value + '%';
 			  }
 			});
-			//Keep a copy of the opacity value so that it can be sent to SketchUp when the Generate button is pressed
-			var face_opacity = $('#slider-face-opacity').slider().data('slider');
+			//Update a copy of the opacity value so that it can be sent to SketchUp when the Generate button is pressed
+			face_opacity = $('#slider-face-opacity').slider().data('slider');
 			
 			//TODO work out how to consolodate these (they are the same)
 			$('#SKMTools1').popover({
