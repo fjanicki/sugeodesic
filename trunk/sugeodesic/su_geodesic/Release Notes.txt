@@ -1,0 +1,52 @@
+V0.2.0
+^^^^^^
+
+New Features
+-Spherical Hubs
+-Cylindrical Struts
+-Point option for Hub Centers (Platonic solid vertices)
+-Improved Menu System
+-Material Selector for faces, struts and hubs (requires SKMTools)
+
+
+Fixes
+-Tetrahedron fix (https://code.google.com/p/sugeodesic/issues/detail?id=8)
+-Duplicate Hub/Struts (https://code.google.com/p/sugeodesic/issues/detail?id=1)
+	Resulted in approximately 6.5% speed improvement of generation time.
+-Fraction option now works (https://code.google.com/p/sugeodesic/issues/detail?id=9)
+
+Improvements
+-Sphere hubs are now components (still need to do cylindrical hubs)
+	
+
+V0.1.2
+^^^^^^
+
+Fixes
+-Added missing processing.html file which prevented any Dome generation. (https://code.google.com/p/sugeodesic/issues/detail?id=6)
+-Fixed Version Number.  (https://code.google.com/p/sugeodesic/issues/detail?id=5)
+
+V0.1.1
+^^^^^^
+
+Fixes
+-Fix for not loading in SketchUp 7 & 8 (https://code.google.com/p/sugeodesic/issues/detail?id=7)
+
+V0.1.0
+^^^^^^
+
+Features 
+-HTML interface (via Plugins/Geodesic Creator menu) 
+- Ability to configure the following variables 
+- base platonic solid: tetrahedron, octahedron and icosahedron 
+- frequency of geodesic - fraction of geodesic 
+- radius of geodesic -Support for basic Geodesic drawing 
+- enable / disable edges - enable / disable faces -Strut Support 
+- Support for Rectangular (i.e. wood) struts - enable / disable struts 
+- enable / disable frame 
+- dimensions configurable -Hub Support - Support for cylindrical strut (i.e. metal) 
+- enable / disable hubs 
+- designed to mate with wood struts 
+- Statistics Support 
+- Printed to Ruby Console after Draw 
+
