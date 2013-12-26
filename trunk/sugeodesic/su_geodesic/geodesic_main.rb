@@ -30,6 +30,8 @@ UI.menu("PlugIns").add_item("Geodesic Creator") {
 
 }
 
+$interrupt = 0
+
 module Geodesic
 
 	class Geodesic
@@ -43,7 +45,7 @@ module Geodesic
 			@g_fraction_num = 1
 			@g_fraction_den = 2
 			@g_fraction = @g_fraction_num.to_f / @g_fraction_den.to_f
-			@g_center = Geom::Point3d.new ([0, 0, -@g_radius + 2 * @g_radius * @g_fraction])
+			@g_center = Geom::Point3d.new([0, 0, -@g_radius + 2 * @g_radius * @g_fraction])
 			
 			@draw_primitive_solid_faces = 0
 			@draw_primative_vertex_points = 1
@@ -62,13 +64,14 @@ module Geodesic
 			
 			#Metal hub configuration
 			@draw_metal_hubs = 1
-			@metal_hub_outer_radius = 2.25
+			@metal_hub_outer_radius = 1.50
 			@metal_hub_outer_thickness = 0.25
 			@metal_hub_depth_depth = 4
 
 			#Generic Strut configuration
 			@draw_struts = 1
 			@strut_material = Sketchup.active_model.materials.add "strut_material"
+			@flatten_strut_base = 1
 			
 			#Wood strut configuration
 			@draw_wood_struts = 1
@@ -84,6 +87,8 @@ module Geodesic
 			#Wood frame configuration
 			@draw_wood_frame = 1
 			@frame_separation = 12
+			@draw_base_frame = 0
+			@base_frame_height = 36
 			
 			#Dome reference data is stored in these arrays
 			#@geodesic = nil
@@ -91,6 +96,7 @@ module Geodesic
 			@primitive_points = []
 			@strut_points = []
 			@triangle_points = []
+			@base_points = []		#Points that are around the base of the dome
 			
 			#Dome shape data is stored in these arrays
 			@strut_hubs = []
@@ -130,27 +136,35 @@ module Geodesic
 			}
 			dialog.add_action_callback("platonic_solid") do |dlg, msg|
 				@g_platonic_solid = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("frequency") do |dlg, msg|
 				@g_frequency = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("fraction_num") do |dlg, msg|
 				@g_fraction_num = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("fraction_den") do |dlg, msg|
 				@g_fraction_den = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("radius") do |dlg, msg|
 				@g_radius = Float(msg) 
+				dialog.execute_script('send_setting();') 
 			end		
 			dialog.add_action_callback("thickness") do |dlg, msg|
 				@wood_strut_thickness = Float(msg) 
+				dialog.execute_script('send_setting();') 
 			end		
 			dialog.add_action_callback("depth") do |dlg, msg|
 				@wood_strut_depth = Float(msg) 
+				dialog.execute_script('send_setting();') 
 			end		
 			dialog.add_action_callback("draw_faces") do |dlg, msg|
 				@draw_tessellated_faces = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("face_material") { |dlg, msg|
 				filepath = msg
@@ -162,11 +176,13 @@ module Geodesic
 						@face_material = SKM.import(filepath)
 					end
 				end
+				dialog.execute_script('send_setting();') 
 			}
 			dialog.add_action_callback("face_opacity") do |dlg, msg|
 				if (@face_material.class != Array)
 					@face_material.alpha = Float(msg) / 100
 				end
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("strut_material") { |dlg, msg|
 				filepath = msg
@@ -175,9 +191,12 @@ module Geodesic
 					@strut_material = [255, 215, 0]	
 				else
 					if File.exists?(filepath)
+						puts 'Do strut'
 						@strut_material = SKM.import(filepath)
+						puts 'bugger...'
 					end
 				end
+				dialog.execute_script('send_setting();') 
 			}
 			dialog.add_action_callback("hub_material") { |dlg, msg|
 				filepath = msg
@@ -189,25 +208,32 @@ module Geodesic
 						@hub_material = SKM.import(filepath)
 					end
 				end
+				dialog.execute_script('send_setting();') 
 			}
 			
 			dialog.add_action_callback("draw_struts") do |dlg, msg|
 				@draw_struts = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("draw_hubs") do |dlg, msg|
 				@draw_hubs = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("draw_metal_hubs") do |dlg, msg|
 				@draw_metal_hubs = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("draw_wood_frame") do |dlg, msg|
 				@draw_wood_frame = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("draw_cpoints") do |dlg, msg|
 				@draw_primative_vertex_points = Integer(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("sphere_radius") do |dlg, msg|
 				@sphere_hub_radius = Float(msg) 
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("strut_type") do |dlg, msg|
 				if (msg == "rectangular")
@@ -218,6 +244,7 @@ module Geodesic
 					@draw_wood_struts = 0					
 					@draw_cylinder_struts = 1
 				end
+				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("hub_type") do |dlg, msg|
 				if (msg == "Spherical")
@@ -228,8 +255,20 @@ module Geodesic
 					@draw_sphere_hubs = 0
 					@draw_metal_hubs = 1
 				end
+				dialog.execute_script('send_setting();') 
 			end
-			
+			dialog.add_action_callback("flatten_strut_base") do |dlg, msg|
+				@flatten_strut_base = Integer(msg) 
+				dialog.execute_script('send_setting();') 
+			end
+			dialog.add_action_callback("draw_base_frame") do |dlg, msg|
+				@draw_base_frame = Integer(msg)
+				dialog.execute_script('send_setting();') 
+			end
+			dialog.add_action_callback("base_frame_height") do |dlg, msg|
+				@base_frame_height = Float(msg)
+				dialog.execute_script('send_setting();') 
+			end
 						
 			dialog.add_action_callback( "create_geodesic" ) do |dlg, msg|
 				#Let the user know we've started
@@ -280,41 +319,49 @@ module Geodesic
 	#	end
 		
 		def draw()
-				@start_time = Time.now		#start timer for statistics measurements
+			@start_time = Time.now		#start timer for statistics measurements
 
-				#Update fraction in case it was changed in the configuration
-				@g_fraction = @g_fraction_num.to_f / @g_fraction_den.to_f
-				@g_center = Geom::Point3d.new ([0, 0, -@g_radius + 2 * @g_radius * @g_fraction])
+			#Update fraction in case it was changed in the configuration
+			@g_fraction = @g_fraction_num.to_f / @g_fraction_den.to_f
+			@g_center = Geom::Point3d.new([0, 0, -@g_radius + 2 * @g_radius * @g_fraction])
 
-				#Create the base Geodesic Dome points
-				if (@g_platonic_solid == 4)
-					create_tetrahedron()							
-				end
-				if (@g_platonic_solid == 8)
-					create_octahedron()				
-				end
-				if (@g_platonic_solid == 20)
-					create_icosahedron()
-				end
-				
-				#Add_hubs
-				add_hubs()
-				
-				#Add struts			
-				add_struts()
-
-				#Add vertex construction points
-				if (@draw_primative_vertex_points == 1)
-					add_vertex_points()
-				end
-				
-				if(@draw_wood_frame == 1)
-					add_wood_frame()
-				end
-				
-				@end_time = Time.now		#start timer for statistics measurements
-				
+			#Create the base Geodesic Dome points
+			if (@g_platonic_solid == 4)
+				create_tetrahedron()							
 			end
+			if (@g_platonic_solid == 8)
+				create_octahedron()				
+			end
+			if (@g_platonic_solid == 20)
+				create_icosahedron()
+			end
+			
+			if (@flatten_strut_base == 1)
+				flatten_base()
+			end
+			
+			if (@draw_base_frame == 1)
+				create_base_frame()
+			end 
+			
+			#Add_hubs
+			add_hubs()
+			
+			#Add struts			
+			add_struts()
+
+			#Add vertex construction points
+			if (@draw_primative_vertex_points == 1)
+				add_vertex_points()
+			end
+			
+			if(@draw_wood_frame == 1)
+				add_wood_frame()
+			end
+			
+			@end_time = Time.now		#start timer for statistics measurements
+			
+		end
 		
 		def statistics()
 			num_hubs = @strut_hubs.size
@@ -497,17 +544,257 @@ module Geodesic
 			end
 		end
 		
+		def flatten_base()
+			indexed_points = []		# list of points with indexes so we can track the points after sorting
+			sorted_points = []		# sorted list of points, first element of each sub-array is point reference
+		
+			#Create a list of points along with their presorted indices
+			@primitive_points.each_with_index { |c, index|
+				if (c[2] > -@g_tolerance) then 
+					indexed_points.push([index, c[0], c[1], c[2]]) 
+				end
+			}
+			
+			#Sort the list by z axis
+			sorted_points = indexed_points.sort_by { |a| a[3] }
 
+			#Get the length of one of the struts to determine height grouping
+			sp = @strut_points[0]
+			p1 =  @primitive_points[sp[0]]
+			p2 =  @primitive_points[sp[1]]
+			len =  (p1.distance p2) / 4		# half the length is enough to separate bottom layer from remainder
+			
+			smallest = sorted_points[0][3]		# track the smallest z to pull the other points to
+			last = smallest					# track the last point's z
+			
+			#Get the points in the lowest layer
+			sorted_points.each { |c|
+				if (c[3] - last < len) then
+					@base_points.push c[0]		# push the index of the point to be flatten				
+				else
+					break
+				end
+				
+				last = c[3]
+				if (c[3] < smallest) then
+					smallest = c[3]
+				end
+			}
+			
+			#flatten the base			
+			@base_points.each { |c|
+				p = @primitive_points[c]
+				v = Geom::Vector3d.new (p[0], p[1], smallest)
+				v.length = @g_radius
+				@primitive_points[c][0] = v[0]
+				@primitive_points[c][1] = v[1]
+				@primitive_points[c][2] = v[2]
+				#Sketchup.active_model.entities.add_line p, [p[0], p[1], p[2] - 50]			
+			}			
+						
+		end
+		
+		def create_base_frame()
+			base_struts = []
+		
+			#Find all of the struts around the base
+			@strut_points.each_with_index { |s, index|
+				f1 = 0
+				f2 = 0
+				@base_points.each { |b|	
+					p1 = Geom::Point3d.new @primitive_points[b]
+					v = Geom::Vector3d.new [0, 0, -50]
+#					Sketchup.active_model.entities.add_line p1, p1 - v
+					if (s[0] == b) then
+						f1 = 1
+					end					
+					if (s[1] == b) then
+						f2 = 1
+					end					
+				}
+				if (f1 == 1 && f2 == 1) then
+					base_struts.push index
+				end
+			}
+			
+			#Create a vertical strut at the origin to use as a component
+			vstrut = @geodesic.entities.add_group		#create group to hold our strut
+			ht = @wood_strut_thickness / 2
+			hd = @wood_strut_depth / 2
+			top_face = vstrut.entities.add_face [-ht, hd, 0], [ht, hd, 0], [ht, -hd, 0], [-ht, -hd, 0]
+			hgt = (@base_frame_height - 2 * @wood_strut_thickness)
+			top_face.pushpull hgt, true
+			vstrut_comp = vstrut.to_component			
+			#get the definition of the vstrut so we can make more
+			vstrut_def = vstrut_comp.definition			
+
+			
+			base_struts.each_with_index { |b, index|
+				p1 = Geom::Point3d.new @primitive_points[@strut_points[b][0]]
+				p2 = Geom::Point3d.new @primitive_points[@strut_points[b][1]]
+
+				#Create a vector of inset length (this will be how far back from the hub the strut starts
+				v = []
+				v[0] = Geom::Vector3d.new(p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
+				v[0].length = @wood_strut_dist_from_hub
+				
+				#calculate the inset point ends 
+				pt1 = p1 + v[0]
+				pt2 = p2 - v[0]
+
+				#create some vectors so that we can create the 4 points that will make the plane of strut at correct orientation
+				v[1] = Geom::Vector3d.new(@g_center.vector_to(p1))
+				v[2] = Geom::Vector3d.new(@g_center.vector_to(p2))
+				v[3] = Geom::Vector3d.new(p2.vector_to(p1))
+				v[4] = Geom::Vector3d.new([0, 0, @wood_strut_thickness])
+
+				#calculate the normal
+				n1 = v[1].cross v[3]
+				n2 = v[2].cross v[3]
+				
+				n1.length = @wood_strut_thickness / 2 
+				n2.length = @wood_strut_thickness / 2 
+				
+				#create the outer facing points
+				pt3 = pt1 + n1	
+				pt4 = pt1 - n1	
+				pt5 = pt2 + n2	
+				pt6 = pt2 - n2	
+
+				#find out which are the upper and lower points
+				if (pt3[2] > pt4[2]) then
+					#pt4,6 are on the bottom
+					p1b = pt4
+					p2b = pt6
+					p1t = pt3
+					p2t = pt5
+				else
+					#pt3,5 are on the bottom
+					p1b = pt3
+					p2b = pt5
+					p1t = pt4
+					p2t = pt6
+				end
+				p3f = p1b - v[4]
+				p4f = p2b - v[4]
+		
+				#create the inner facing points
+				v[1].length = @wood_strut_depth
+				v[2].length = @wood_strut_depth
+				
+				pt7 = p1b - v[1]
+				pt8 = p2b - v[2]
+				pt9 = Geom::Point3d.new pt7 - v[4]
+				pt10 = Geom::Point3d.new pt8 - v[4]
+				pt9[2] = p3f[2]
+				pt10[2] = p4f[2]
+				pt9 = extend_line(p3f, pt9, @wood_strut_depth)
+				pt10 = extend_line(p4f, pt10, @wood_strut_depth)
+			
+				p7_2 = Geom.intersect_line_line [pt9, pt9 + v[4]], [pt7, pt7 - v[1]]
+				p8_2 = Geom.intersect_line_line [pt10, pt10 + v[4]], [pt8, pt8 - v[2]]
+				
+				
+				#Create the angled face to level the bottom
+				create_solid([p1b ,p2b ,p3f ,p4f, p7_2, p8_2, pt9, pt10])
+				
+				#create a temporary face to detect the intersection of the line extension with
+				t1 = p1 + v[4]
+				t2 = p2 + v[4]
+
+				v[0].length = @wood_strut_dist_from_hub * 2
+				#Front Point Determination	
+				status, pt11 = line_plane_intersection([p1t, p1t - v[0]], [@g_center, p1, t1])
+				if (status == 1) then
+					v[5] = Geom::Vector3d.new(pt11 - p1)
+					p13 = p1 - v[5] - v[4]
+				end 
+				status, pt12 = line_plane_intersection([p2t, p2t + v[0]], [@g_center, p2, t2])
+				if (status == 1) then
+					v[6] = Geom::Vector3d.new(pt12 - p2)
+					p14 = p2 - v[6] - v[4]
+				end 
+
+				#Back Point Determination
+				p15 = p1t - v[1]
+				p16 = p2t - v[2]				
+				status, pt11 = line_plane_intersection([p15, p15 - v[0]], [@g_center, p1, t1])
+				if (status == 1) then
+					p17 = pt11 - v[5] - v[5]
+					p19 = p17 - v[4]
+					p19[2] = p13[2]
+					p21 = extend_line(p13, p19, @wood_strut_depth)
+				end 
+				status, pt12 = line_plane_intersection([p16, p16 + v[0]], [@g_center, p2, t2])
+				if (status == 1) then
+					p18 = pt12 - v[6] - v[6]
+					p20 = p18 - v[4]
+					p20[2] =  p14[2]
+					p22 = extend_line(p14, p20, @wood_strut_depth)
+				end 
+				
+				#Create the top of the frame (horizontal strut)
+				create_solid([p13 ,p14 ,p13 - v[4] ,p14 - v[4], p21, p22, p21 - v[4], p22 - v[4]])
+				#create variables for 'top of frame'
+				tf1 = p13 - v[4]
+				tf2 = p14 - v[4]
+				tf3 = p21 - v[4]
+				tf4 = p22 - v[4]
+
+				#Create more vertical struts
+				trans = Geom::Transformation.translation([tf3[0] - ht, tf3[1] - hd, tf3[2]])
+				new_vstrut = @geodesic.entities.add_instance vstrut_def, trans
+
+				trans = Geom::Transformation.translation([tf4[0] - ht, tf4[1] - hd, tf4[2]])
+				new_vstrut = @geodesic.entities.add_instance vstrut_def, trans
+
+				
+				#Create a vertical strut 
+				#fsh = Geom::Vector3d.new [0,0, -(@base_frame_height - 2 * @wood_strut_thickness)]	#vertical frame strut height
+				#s_vec = tf1 - tf2
+				#f_vec = fsh.cross s_vec
+				#f_vec.length = @wood_strut_depth
+				#tf5 = tf3 - f_vec
+				#tf6 = tf3 + f_vec
+				#check for an intersection so we know the vector has the right sign
+				#d1 = tf1.distance(tf5) + tf2.distance(tf5)
+				#d2 = tf1.distance(tf6) + tf2.distance(tf6)	
+				#if (d1 < d2) then
+				#	tf5_6_1 = tf5
+				#	tf5_6_2 = tf4 - f_vec
+				#else
+				#	tf5_6_1 = tf6
+				#	tf5_6_2 = tf4 + f_vec
+				#end
+
+				#tf7 = extend_line(tf5_6_1, tf2, @wood_strut_thickness)
+				#tf8 = extend_line(tf3, tf4, @wood_strut_thickness)
+				#create_solid([tf5_6_1 ,tf7 ,tf5_6_1 + fsh ,tf7 + fsh, tf3, tf8, tf3 + fsh, tf8 + fsh])
+				
+				#Turn the Vertical Strut into a component for reuse
+				#v_strut_grp = @geodesic.entities.add_group
+				#v_strut_comp = v_strut_grp.to_component
+				#v_strut_def = v_strut_comp.definition
+				
+				#m1 = extend_line(tf5_6_1, tf2, @wood_strut_thickness)
+				#trans = Geom::Transformation.translation(m1)
+				#new_v_strut = @geodesic.entities.add_instance v_strut_def, trans
+			
+				
+			}
+			
+		end
+		
 		def isPointUnique(array, pnt)
 			array.each_with_index { |p, index|
-				v = Geom::Vector3d.new (pnt - p);
+				v = Geom::Vector3d.new(pnt - p);
 				if (v.length < @g_tolerance)
 					return index;
-				end
+				end	
 			}
 			return -1
 		end
-
+		
 		def add_hubs()
 			if (@draw_hubs == 1)
 				if (@draw_sphere_hubs == 1)
@@ -700,10 +987,10 @@ module Geodesic
 
 		def isLineUnique(array, line)
 			array.each_with_index { |p, index|
-				v1_1 = Geom::Vector3d.new (line[0] - p[0]);
-				v1_2 = Geom::Vector3d.new (line[1] - p[0]);
-				v2_1 = Geom::Vector3d.new (line[1] - p[1]);
-				v2_2 = Geom::Vector3d.new (line[0] - p[1]);
+				v1_1 = Geom::Vector3d.new(line[0] - p[0]);
+				v1_2 = Geom::Vector3d.new(line[1] - p[0]);
+				v2_1 = Geom::Vector3d.new(line[1] - p[1]);
+				v2_2 = Geom::Vector3d.new(line[0] - p[1]);
 				#Check the points in both orientations
 				if (v1_1.length < @g_tolerance && v2_1.length < @g_tolerance)
 					return index;
@@ -719,22 +1006,24 @@ module Geodesic
 			@u_struts = []
 			#Add the struts
 			@strut_points.each { |c|
-				if (isLineUnique(@u_struts, [@primitive_points[c[0]], @primitive_points[c[1]]]) == -1)
-					@u_struts.push([@primitive_points[c[0]], @primitive_points[c[1]]])
-					
-					if (@draw_struts == 1)
-						if (@draw_wood_struts == 1)
-							@all_edges.push(add_wood_strut(@primitive_points[c[0]], @primitive_points[c[1]], @wood_strut_dist_from_hub))
-						end
+				if (@primitive_points[c[0]][2] > -@g_tolerance && @primitive_points[c[1]][2] > -@g_tolerance) then
+					if (isLineUnique(@u_struts, [@primitive_points[c[0]], @primitive_points[c[1]]]) == -1)
+						@u_struts.push([@primitive_points[c[0]], @primitive_points[c[1]]])
 						
-						if (@draw_cylinder_struts == 1)
-							@all_edges.push(add_cylinder_strut(@primitive_points[c[0]], @primitive_points[c[1]]))				
+						if (@draw_struts == 1)
+							if (@draw_wood_struts == 1)
+								@all_edges.push(add_wood_strut(@primitive_points[c[0]], @primitive_points[c[1]], @wood_strut_dist_from_hub))
+							end
+							
+							if (@draw_cylinder_struts == 1)
+								@all_edges.push(add_cylinder_strut(@primitive_points[c[0]], @primitive_points[c[1]]))				
+							end
 						end
-					end
-					#Add the hub plates
-					#This currently relies on being here so that it gets the correct faces passed to it.
-					if (@draw_metal_hubs == 1)
-						#add_hub_plates(strut_faces, @strut_hubs[c[0]], @strut_hubs[c[1]], strut_dist_from_hub)
+						#Add the hub plates
+						#This currently relies on being here so that it gets the correct faces passed to it.
+						if (@draw_metal_hubs == 1)
+							#add_hub_plates(strut_faces, @strut_hubs[c[0]], @strut_hubs[c[1]], strut_dist_from_hub)
+						end
 					end
 				end
 			}	
@@ -970,30 +1259,30 @@ module Geodesic
 					x = $p_s[0] + ($p_e[0] - $p_s[0]) * co1
 					y = $p_s[1] + ($p_e[1] - $p_s[1]) * co1
 					z = $p_s[2] + ($p_e[2] - $p_s[2]) * co1
-					p = Geom::Point3d.new ([x, y, z])
+					p = Geom::Point3d.new([x, y, z])
 					
 					length = @g_center.distance(p)
 					ratio = @g_radius.to_f / length
 					v = @g_center.vector_to(p)
 					v.length = @g_radius
 					
-					@primitive_points.push(Geom::Point3d.new (extend_line(@g_center, p, @g_radius)))
+					@primitive_points.push(Geom::Point3d.new(extend_line(@g_center, p, @g_radius)))
 				end
 				p_num = @primitive_points.size() - 1
 			
 				if (c > 0)
-					if (@primitive_points[p_num][2] >= -1 * @g_tolerance && @primitive_points[p_num - 1][2] >= -1 * @g_tolerance)
+					#if (@primitive_points[p_num][2] >= -1 * @g_tolerance && @primitive_points[p_num - 1][2] >= -1 * @g_tolerance)
 						@strut_points.push([p_num - 1, p_num])
-					end
+					#end
 				end
 			
 				if (order < @g_frequency + 1)
-					if (@primitive_points[p_num - order][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance)
+					#if (@primitive_points[p_num - order][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance)
 						@strut_points.push([p_num - order, p_num])
-					end			
-					if (@primitive_points[p_num - order - 1][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance)
+					#end			
+					#if (@primitive_points[p_num - order - 1][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance)
 						@strut_points.push([p_num - order - 1, p_num])
-					end
+					#end
 
 					if (@primitive_points[p_num - order][2] >= -@g_tolerance && @primitive_points[p_num - order - 1][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance)
 						if (@draw_tessellated_faces == 1)
@@ -1129,6 +1418,23 @@ module Geodesic
 			v.length = dist
 			return p1 + v
 		end		
+
+		def line_line_intersection(line1, line2)
+		 
+		  point = Geom.intersect_line_line(line1,line2) 
+		  if not point ### no intersection of edges' lines 
+			return nil
+		  else ### see if cross/touch 
+			d11 = point.distance(line1[0]) + point.distance(line1[1]) 
+			d12 = line1[0].distance(line1[1]) + 0.0 
+			d21 = point.distance(line2[0]) + point.distance(line2[1]) 
+			d22 = line2[0].distance(line2[1]) + 0.0 
+			if ((d11 <= d12) or (d11 - d12 < 1e-10)) and ((d21 <= d22) or (d21 - d22 < 1e-10)) 
+				return point 
+			end 
+				return nil
+		  end
+		end 
 		
 		#Given a line (defined by 2 Point3d's and a plane defined by 3 Point3d's, return point of incidence
 		#A status will also be returned -1 = Parallel, no intersection, 0 = Line is coincident with plane, 1 = normal intersection, 
@@ -1190,7 +1496,7 @@ module Geodesic
 
 		hub_plate = @geodesic.add_group
 		face1_coords = calc_hub_plate_face(strut_faces[0], 0, hub1, extend_dist)
-		face1 = hub_plate.entities.add_face (face1_coords[0], face1_coords[1], face1_coords[2], face1_coords[3])
+		face1 = hub_plate.entities.add_face(face1_coords[0], face1_coords[1], face1_coords[2], face1_coords[3])
 
 		#Create a normal to the inner face
 		normal  = face1.normal
@@ -1199,7 +1505,7 @@ module Geodesic
 		tmp_grp = entities.add_group
 		tmp_face2 = tmp_grp.entities.add_face(vertices[0].position - normal, vertices[1].position - normal, vertices[2].position - normal, vertices[3].position - normal)
 		face2_coords = calc_hub_plate_face(tmp_face2, 0, hub1, extend_dist)
-		hub_plate.entities.add_face (face2_coords[0], face2_coords[1], face2_coords[2], face2_coords[3])
+		hub_plate.entities.add_face(face2_coords[0], face2_coords[1], face2_coords[2], face2_coords[3])
 		
 		#empty the temporary group
 		tmp_grp.entities.clear!
