@@ -73,7 +73,7 @@ module Geodesic
 			@strut_material = Sketchup.active_model.materials.add "strut_material"
 			@flatten_strut_base = 1
 			
-			#Wood strut configuration
+			#Rectangular strut configuration
 			@draw_wood_struts = 1
 			@wood_strut_dist_from_hub = 3
 			@wood_strut_thickness = 1.5
@@ -81,7 +81,8 @@ module Geodesic
 
 			#Cylinder strut configuration
 			@draw_cylinder_struts = 1
-			@cylinder_strut_dist_from_hub = 4
+			@cylinder_strut_extension = -4
+			@cylinder_strut_radius = 3
 			@cylinder_strut_radius = 2
 				
 			#Wood frame configuration
@@ -255,6 +256,10 @@ module Geodesic
 					@draw_sphere_hubs = 0
 					@draw_metal_hubs = 1
 				end
+				if (msg == "None")
+					@draw_sphere_hubs = 0
+					@draw_metal_hubs = 0
+				end
 				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("flatten_strut_base") do |dlg, msg|
@@ -269,7 +274,18 @@ module Geodesic
 				@base_frame_height = Float(msg)
 				dialog.execute_script('send_setting();') 
 			end
-						
+			dialog.add_action_callback("strut_radius") do |dlg, msg|
+				@cylinder_strut_radius = Float(msg)
+				dialog.execute_script('send_setting();') 
+			end	
+			dialog.add_action_callback("strut_extension") do |dlg, msg|
+				@cylinder_strut_extension = Float(msg)
+				dialog.execute_script('send_setting();') 
+			end	
+			dialog.add_action_callback("strut_offset") do |dlg, msg|
+				@cylinder_strut_offset = Float(msg)
+				dialog.execute_script('send_setting();') 
+			end				
 			dialog.add_action_callback( "create_geodesic" ) do |dlg, msg|
 				#Let the user know we've started
 				#script = 'messageFromSketchup("Processing has started.. Give me a minute or two\n (time varies depending on settings).");'
@@ -584,7 +600,7 @@ module Geodesic
 			#flatten the base			
 			@base_points.each { |c|
 				p = @primitive_points[c]
-				v = Geom::Vector3d.new(p[0], p[1], smallest)
+				v = Geom::Vector3d.new (p[0], p[1], smallest)
 				v.length = @g_radius
 				@primitive_points[c][0] = v[0]
 				@primitive_points[c][1] = v[1]
@@ -1326,18 +1342,35 @@ module Geodesic
 
 			#Create a vector of inset length (this will be how far back from the hub the strut starts
 			v1 = Geom::Vector3d.new(p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
-			v1.length = @cylinder_strut_dist_from_hub
+			v1.length = @cylinder_strut_extension.abs
 			
 			#calculate the inset point ends 
-			pt1 = Geom::Point3d.new(p1[0] + v1[0], p1[1] + v1[1], p1[2] + v1[2])
-			pt2 = Geom::Point3d.new(p2[0] - v1[0], p2[1] - v1[1], p2[2] - v1[2])
-
+			if (@cylinder_strut_extension != 0)
+				if (@cylinder_strut_extension < 0) 
+					pt1 = Geom::Point3d.new(p1[0] + v1[0], p1[1] + v1[1], p1[2] + v1[2])
+					pt2 = Geom::Point3d.new(p2[0] - v1[0], p2[1] - v1[1], p2[2] - v1[2])
+				else 
+					pt1 = Geom::Point3d.new(p1[0] - v1[0], p1[1] - v1[1], p1[2] - v1[2])
+					pt2 = Geom::Point3d.new(p2[0] + v1[0], p2[1] + v1[1], p2[2] + v1[2])
+				end 
+			else
+				pt1 = Geom::Point3d.new(p1[0], p1[1], p1[2])
+				pt2 = Geom::Point3d.new(p2[0], p2[1], p2[2])
+			end
+			
 			#create some vectors so that we can create the 4 points that will make the plane of strut at correct orientation
 			v2 = Geom::Vector3d.new(@g_center.vector_to(p1))
 			v3 = Geom::Vector3d.new(@g_center.vector_to(p2))
 			v4 = Geom::Vector3d.new(p2.vector_to(p1))	
 			
-			circle = strut.entities.add_circle pt1, pt2.vector_to(p2), @cylinder_strut_radius
+			n1 = v2.cross v4
+			n1.length = @cylinder_strut_offset
+			pt1o = Geom::Point3d.new(pt1[0] - n1[0], pt1[1] - n1[1], pt1[2] - n1[2])
+			pt2o = Geom::Point3d.new(pt2[0] + n1[0], pt2[1] + n1[1], pt2[2] + n1[2])
+			
+			#strut.entities.add_line pt1o, pt2o
+			
+			circle = strut.entities.add_circle pt1o, pt1o.vector_to(pt2o), @cylinder_strut_radius
 			circle_face = strut.entities.add_face circle
 
 			color = @strut_material

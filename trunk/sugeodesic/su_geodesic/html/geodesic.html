@@ -23,7 +23,7 @@
 <body>
 	<div class="container">
 		<img src="../img/logo.png">
-		<h3>Version 0.2.1</h3>
+		<h3>Version 0.2.2</h3>
 		<h2>Click on Each section to configure your Geodesic and then click Generate</h2>
 		<form name="configure_geodesic">
 		<div class="accordion" id="my-accordion" >
@@ -117,17 +117,25 @@
 									<tr><td valign="middle">Select Strut Material</td><td valign="bottom"><input type="file" disabled id="strut_material" accept="skp"></td><td><a href="#" data-toggle="popover" id = "SKMTools2" ></a></td></tr>
 								</table></ul>
 
-								<p><input type="radio" name="strut_type" value="rectangular" checked="checked">Rectangular</p>
+								<p><input type="radio" name="strut_type" value="rectangular">Rectangular</p>
 								<p>Enter dimensions of strut </p>
 								<ul>
 									<p><input type="text" id="thickness" value="1.5" class="text-med"> x <input type="text" id="depth" value="3.5" class="text-med"></p>
 									<p><input type="checkbox" id="draw_wood_frame" > Draw Frame</p>
 								</ul><br>
-								<p><input type="radio" name="strut_type" value="cylindrical" >Cylinder</p>
+								<p><input type="radio" name="strut_type" value="cylindrical" checked="checked">Cylinder</p>
 								<p>Enter radius of strut </p>
 								<ul>
-									<input type="text" id="radius" value="3" class="text-med">
+									<input type="text" id="strut_radius" value="1" class="text-med">
 								</ul>
+								<p>Enter extension of strut past hub centre</p>
+								<ul>
+									<input type="text" id="strut_extension" value="12" class="text-med">
+								</ul>								
+								<p>Enter offset of strut end </p>
+								<ul>
+									<input type="text" id="strut_offset" value="12" class="text-med">
+								</ul>								
 							</ul>
 						</div>
 					</div>
@@ -147,12 +155,13 @@
 								<ul><table cellpadding=10>
 									<tr><td valign="middle">Select Hub Material</td><td valign="bottom"><input type="file" disabled id="hub_material" accept="skp"></td><td><a href="#" data-toggle="popover" id = "SKMTools3" ></a></td></tr>
 								</table></ul>
-								<p><input type="radio" name="hub_type" value="Cylindrical" checked="checked">Cylindrical</p>
+								<p><input type="radio" name="hub_type" value="Cylindrical">Cylindrical</p>
 								<p><input type="radio" name="hub_type" value="Spherical">Sphere</p>
 								<p>Enter radius of sphere hub</p>
 								<ul>
 									<input type="text" id="sphere_radius" value="5" class="text-med">
 								</ul>
+								<p><input type="radio" name="hub_type" value="None" checked="checked">No Hubs</p>
 							</ul>  
 						</a>
 					</div>
@@ -225,7 +234,7 @@
 			var v = document.getElementById(float_var_str);
 			var float_var = parseFloat(v.value);
 			if (!isNaN(float_var)) {
-				if (float_var < 0) {
+				if (float_var < min) {
 					alert("Woah there cowboy. How about making " + float_var_str + " a number greater than " + min);
 					return 1;
 				} else {
@@ -270,7 +279,7 @@
 					alert('You selected a .' + ext + ' file; please select a .' + ext_check + ' file instead!');
 					return false; 
 				} else {
-					options[field] = ext;
+					options[field] = document.getElementById(field).value;
 					return true; 
 				}
 			} else {
@@ -342,6 +351,18 @@
 
 			//Check and send the base frame height
 			ret = validate_float('base_frame_height', 0)
+			if (ret == 1) { error = 1; }
+			
+			//Check and send the strut radius (for cylindrical type)
+			ret = validate_float('strut_radius', 0)
+			if (ret == 1) { error = 1; }
+
+			//Check and send the strut extension (for cylindrical type)
+			ret = validate_float('strut_extension', -Infinity)
+			if (ret == 1) { error = 1; }
+
+			//Check and send the strut offset (for cylindrical type)
+			ret = validate_float('strut_offset', -Infinity)
 			if (ret == 1) { error = 1; }
 			
 			//send_checkbox("draw_edges")

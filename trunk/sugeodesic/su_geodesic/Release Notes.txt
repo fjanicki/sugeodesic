@@ -1,3 +1,17 @@
+V0.2.2
+^^^^^^
+
+New Features
+-Added option for No Hubs
+-Added strut extension option for cylindrical strut types
+-Added strut offset option for cylindrical struy types
+
+The above settings will allow you to make a reciprocal dome
+-Changed default settings so that a reciprical dome is created by default
+
+Fixes
+-Material Selection now works again https://code.google.com/p/sugeodesic/issues/detail?id=12)
+
 V0.2.1
 ^^^^^^
 
