@@ -600,7 +600,7 @@ module Geodesic
 			#flatten the base			
 			@base_points.each { |c|
 				p = @primitive_points[c]
-				v = Geom::Vector3d.new (p[0], p[1], smallest)
+				v = Geom::Vector3d.new [p[0], p[1], smallest]
 				v.length = @g_radius
 				@primitive_points[c][0] = v[0]
 				@primitive_points[c][1] = v[1]
