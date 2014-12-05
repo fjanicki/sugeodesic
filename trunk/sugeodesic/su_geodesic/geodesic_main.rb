@@ -1,6 +1,6 @@
 #	Geodesic Dome Creator allows you to create fully customized Geodesic 
 #	Domes from within SketchUp
-#    Copyright (C) 2013 Paul Matthews
+#    Copyright (C) 2013-2014 Paul Matthews
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -39,15 +39,19 @@ module Geodesic
 		def initialize()
 			#Main Configuration items
 			@g_frequency = 3
+
 			@g_radius = 150
+			@g_radius_x = 300
+			@g_radius_y = 100
+			@g_radius_z = 200
 			@g_platonic_solid = 20
 			
 			@g_fraction_num = 1
 			@g_fraction_den = 2
 			@g_fraction = @g_fraction_num.to_f / @g_fraction_den.to_f
-			@g_center = Geom::Point3d.new([0, 0, -@g_radius + 2 * @g_radius * @g_fraction])
+			@g_center = Geom::Point3d.new([0, 0, -(@g_radius_z) + 2 * @g_radius_z * @g_fraction])
 			
-			@draw_primitive_solid_faces = 0
+			@draw_primitive_solid_faces = 1
 			@draw_primative_vertex_points = 1
 			@primitive_face_material = [255, 255, 255]
 
@@ -59,11 +63,11 @@ module Geodesic
 			@hub_material = Sketchup.active_model.materials.add "hub_material"
 			
 			#Sphere hub configuration
-			@draw_sphere_hubs = 1
+			@draw_sphere_hubs = 0
 			@sphere_hub_radius = 5
 			
 			#Metal hub configuration
-			@draw_metal_hubs = 1
+			@draw_cylinder_hubs = 1
 			@metal_hub_outer_radius = 1.50
 			@metal_hub_outer_thickness = 0.25
 			@metal_hub_depth_depth = 4
@@ -75,16 +79,16 @@ module Geodesic
 			
 			#Rectangular strut configuration
 			@draw_wood_struts = 1
-			@wood_strut_dist_from_hub = 3
-			@wood_strut_thickness = 1.5
-			@wood_strut_depth = 3.5
+			@rect_strut_dist_from_hub = 3
+			@rect_strut_thickness = 1.5
+			@rect_strut_depth = 3.5
 
 			#Cylinder strut configuration
-			@draw_cylinder_struts = 1
+			@draw_cylinder_struts = 0
 			@cylinder_strut_extension = -4
 			@cylinder_strut_radius = 3
 			@cylinder_strut_radius = 2
-				
+					
 			#Wood frame configuration
 			@draw_wood_frame = 1
 			@frame_separation = 12
@@ -98,6 +102,7 @@ module Geodesic
 			@strut_points = []
 			@triangle_points = []
 			@base_points = []		#Points that are around the base of the dome
+			@clipped_triangles = []	#array to store any clipped triangles
 			
 			#Dome shape data is stored in these arrays
 			@strut_hubs = []
@@ -110,6 +115,7 @@ module Geodesic
 			
 			#tolerance factor to circumvent small number errors
 			@g_tolerance = 0.5
+			#@g_tolerance = 100
 			
 
 			#Check the SKM Tools are enabled (Webdialog functionality is enabled if present)
@@ -136,7 +142,9 @@ module Geodesic
 				dialog.execute_script(script) 
 			}
 			dialog.add_action_callback("platonic_solid") do |dlg, msg|
+				puts "platonic handler"
 				@g_platonic_solid = Integer(msg) 
+				puts 'about to send'
 				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("frequency") do |dlg, msg|
@@ -151,16 +159,26 @@ module Geodesic
 				@g_fraction_den = Integer(msg) 
 				dialog.execute_script('send_setting();') 
 			end
-			dialog.add_action_callback("radius") do |dlg, msg|
-				@g_radius = Float(msg) 
+			
+			dialog.add_action_callback("radius_x") do |dlg, msg|
+				@g_radius_x = Float(msg) 
 				dialog.execute_script('send_setting();') 
 			end		
+			dialog.add_action_callback("radius_y") do |dlg, msg|
+				@g_radius_y = Float(msg) 
+				dialog.execute_script('send_setting();') 
+			end	
+			dialog.add_action_callback("radius_z") do |dlg, msg|
+				@g_radius_z = Float(msg) 
+				dialog.execute_script('send_setting();') 
+			end	
+
 			dialog.add_action_callback("thickness") do |dlg, msg|
-				@wood_strut_thickness = Float(msg) 
+				@rect_strut_thickness = Float(msg) 
 				dialog.execute_script('send_setting();') 
 			end		
 			dialog.add_action_callback("depth") do |dlg, msg|
-				@wood_strut_depth = Float(msg) 
+				@rect_strut_depth = Float(msg) 
 				dialog.execute_script('send_setting();') 
 			end		
 			dialog.add_action_callback("draw_faces") do |dlg, msg|
@@ -180,9 +198,12 @@ module Geodesic
 				dialog.execute_script('send_setting();') 
 			}
 			dialog.add_action_callback("face_opacity") do |dlg, msg|
+				puts 'in face_opacity'
 				if (@face_material.class != Array)
+					puts 'in face_opacity if'
 					@face_material.alpha = Float(msg) / 100
 				end
+				puts 'in face_opacity done if'
 				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("strut_material") { |dlg, msg|
@@ -199,6 +220,7 @@ module Geodesic
 				end
 				dialog.execute_script('send_setting();') 
 			}
+
 			dialog.add_action_callback("hub_material") { |dlg, msg|
 				filepath = msg
 				filepath = msg.gsub('\\','/')
@@ -220,8 +242,8 @@ module Geodesic
 				@draw_hubs = Integer(msg) 
 				dialog.execute_script('send_setting();') 
 			end
-			dialog.add_action_callback("draw_metal_hubs") do |dlg, msg|
-				@draw_metal_hubs = Integer(msg) 
+			dialog.add_action_callback("draw_cylinder_hubs") do |dlg, msg|
+				@draw_cylinder_hubs = Integer(msg) 
 				dialog.execute_script('send_setting();') 
 			end
 			dialog.add_action_callback("draw_wood_frame") do |dlg, msg|
@@ -250,15 +272,15 @@ module Geodesic
 			dialog.add_action_callback("hub_type") do |dlg, msg|
 				if (msg == "Spherical")
 					@draw_sphere_hubs = 1
-					@draw_metal_hubs = 0
+					@draw_cylinder_hubs = 0
 				end
 				if (msg == "Cylindrical")
 					@draw_sphere_hubs = 0
-					@draw_metal_hubs = 1
+					@draw_cylinder_hubs = 1
 				end
 				if (msg == "None")
 					@draw_sphere_hubs = 0
-					@draw_metal_hubs = 0
+					@draw_cylinder_hubs = 0
 				end
 				dialog.execute_script('send_setting();') 
 			end
@@ -315,8 +337,7 @@ module Geodesic
 				statistics()
 				
 				#Close the dialogs
-				processing.close
-				
+				processing.close			
 			end
 		end
 			
@@ -339,8 +360,8 @@ module Geodesic
 
 			#Update fraction in case it was changed in the configuration
 			@g_fraction = @g_fraction_num.to_f / @g_fraction_den.to_f
-			@g_center = Geom::Point3d.new([0, 0, -@g_radius + 2 * @g_radius * @g_fraction])
-
+			@g_center = Geom::Point3d.new([0, 0, -(@g_radius_z) + 2 * @g_radius_z * @g_fraction] ) 
+			
 			#Create the base Geodesic Dome points
 			if (@g_platonic_solid == 4)
 				create_tetrahedron()							
@@ -390,7 +411,7 @@ module Geodesic
 			print("Platonic Solid: #{@g_platonic_solid}\n")
 			frac = @g_fraction * 100
 			print("Sphere Fraction: #{frac}\n")
-			print("Radius: #{@g_radius}\n\n")
+			print("Radius: X: #{@g_radius_x} Y: #{@g_radius_y} Z: #{@g_radius_z}\n\n")
 
 			print("Number of Hubs: \t#{num_hubs}\n")
 			print("Number of Struts:\t#{num_struts}\n")
@@ -429,18 +450,21 @@ module Geodesic
 		#the points from this are used to draw all other aspects of the dome
 		def create_tetrahedron()
 
-			#Get the length of a side
-			r2 = @g_radius / 2
+			#Get the length of the sides
+			r2x = @g_radius_x / 2
+			r2y = @g_radius_y / 2
+			r2z = @g_radius_z / 2
+			print("Radius: X: #{r2x} Y: #{r2y} Z: #{r2y}\n\n")
 			
-			#translation transformation to account for the origin centered start and the fraction of dome desired
+			#translation transformation to account for the origin centred start and the fraction of dome desired
 			t = Geom::Transformation.translation(@g_center)
 			
 			#Create the points of the tetrahedron
 			tetrahedron = []
-			tetrahedron.push(Geom::Point3d.new([0, r2, r2]).transform!(t))
-			tetrahedron.push(Geom::Point3d.new([0, -r2, r2]).transform!(t))
-			tetrahedron.push(Geom::Point3d.new([r2, 0, -r2]).transform!(t))
-			tetrahedron.push(Geom::Point3d.new([-r2, 0, -r2]).transform!(t))
+			tetrahedron.push(Geom::Point3d.new([0, r2y, r2z]).transform!(t))
+			tetrahedron.push(Geom::Point3d.new([0, -r2y, r2z]).transform!(t))
+			tetrahedron.push(Geom::Point3d.new([r2x, 0, -r2z]).transform!(t))
+			tetrahedron.push(Geom::Point3d.new([-r2x, 0, -r2z]).transform!(t))
 
 			tetra_faces = []
 			c = [0, 1, 3, 1, 2, 3, 2, 0, 3, 0, 1, 2] 
@@ -453,7 +477,7 @@ module Geodesic
 				# draw the triangles of the tetrahedron
 				if(@draw_primitive_solid_faces == 1)
 					if (all_pos_z([tetrahedron[j], tetrahedron[k], tetrahedron[l]]) == 0)
-						tetra_faces.push(@geodesic.entities.add_face(tetrahedron[j], tetrahedron[k], tetrahedron[l]))
+						#tetra_faces.push(@geodesic.entities.add_face(tetrahedron[j], tetrahedron[k], tetrahedron[l]))
 					end
 				end
 				#decompose each face of the tetrahedron
@@ -465,20 +489,23 @@ module Geodesic
 		#Creates the points of the tessellated octahedron
 		#the points from this are used to draw all other aspects of the dome
 		def create_octahedron()
-			#Get the length of a side
-			a = @g_radius * Math.sqrt(2) / 2
+			#Get the length of a sides
+			r2o2 = Math.sqrt(2) / 2
+			ax = @g_radius_x * r2o2
+			ay = @g_radius_y * r2o2
+			az = @g_radius_z * r2o2
 			
-			#translation transformation to account for the origin centered start and the fraction of dome desired
+			#translation transformation to account for the origin centred start and the fraction of dome desired
 			t = Geom::Transformation.translation(@g_center)
 			
 			#Create the points of the octahedron
 			octahedron = []
-			octahedron.push(Geom::Point3d.new([-a, -a, 0]).transform!(t))
-			octahedron.push(Geom::Point3d.new([a, -a, 0]).transform!(t))
-			octahedron.push(Geom::Point3d.new([a, a, 0]).transform!(t))
-			octahedron.push(Geom::Point3d.new([-a, a, 0]).transform!(t))
-			octahedron.push(Geom::Point3d.new([0, 0, @g_radius]).transform!(t))
-			octahedron.push(Geom::Point3d.new([0, 0, -@g_radius]).transform!(t))
+			octahedron.push(Geom::Point3d.new([-ax, -ay, 0]).transform!(t))
+			octahedron.push(Geom::Point3d.new([ax, -ay, 0]).transform!(t))
+			octahedron.push(Geom::Point3d.new([ax, ay, 0]).transform!(t))
+			octahedron.push(Geom::Point3d.new([-ax, ay, 0]).transform!(t))
+			octahedron.push(Geom::Point3d.new([0, 0, az]).transform!(t))
+			octahedron.push(Geom::Point3d.new([0, 0, -az]).transform!(t))
 					
 			octa_faces = []			
 			c = [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4, 0, 1, 5, 1, 2, 5, 2, 3, 5, 3, 0, 5] 			
@@ -490,7 +517,7 @@ module Geodesic
 				# draw the triangles of the octahedron
 				if(@draw_primitive_solid_faces == 1)
 					if (all_pos_z([octahedron[j], octahedron[k], octahedron[l]]) == 0)
-						icosa_faces.push(@geodesic.entities.add_face(octahedron[j], octahedron[k], octahedron[l])) 
+						#octa_faces.push(@geodesic.entities.add_face(octahedron[j], octahedron[k], octahedron[l])) 
 					end
 				end
 				#decompose each face of the octahedron
@@ -498,62 +525,289 @@ module Geodesic
 			end							
 		end
 
+		def create_ellipse(a, b)
+			#number of line segments in the ellipse
+			sections = 36
+			
+			#extract the major axis length
+			if (a[0] != 0) 
+				a_l = a[0]
+			end
+			if (a[1] != 0) 
+				a_l = a[1]
+			end
+			if (a[2] != 0)
+				a_l = a[2]
+			end
+			a_sqr = a_l * a_l
+			
+			#extract the minor axis length
+			if (b[0] != 0) 
+				b_l = b[0] 
+			end
+			if (b[1] != 0) 
+				b_l = b[1]
+			end
+			if (b[2] != 0) 
+				b_l = b[2]
+			end
+			b_sqr = b_l * b_l
+			#print("b_l: #{b_l}\n")			
+			
+			if (a[0] == 0 && b[0] == 0)
+				v = Geom::Vector3d.new([1, 0, 0])
+				p = Geom::Point3d.new([0, 1, 0])
+			end
+			if (a[1] == 0 && b[1] == 0)
+				v = Geom::Vector3d.new([0, 1, 0])
+				p = Geom::Point3d.new([0, 0, 1])
+			end
+			if (a[2] == 0 && b[2] == 0)
+				v = Geom::Vector3d.new([0, 0, 1])			
+				p = Geom::Point3d.new([1, 0, 0])
+			end
+
+			#create the points
+			points = []
+			for i in 0 .. sections - 1
+				r = i *(2 * Math::PI / sections)
+				t1 = Geom::Transformation.rotation([0,0,0], v, r)
+				#t2 = Geom::Transformation.translation(Geom::Vector3d.new([0,0,@g_center[2]]))
+				p2 = (Geom::Point3d.new(p)).transform!(t1)
+				
+				cos_r_sqr = Math::cos(r) * Math::cos(r)
+				sin_r_sqr = Math::sin(r) * Math::sin(r)
+				ell_radius = a_l * b_l / (Math::sqrt(a_sqr * sin_r_sqr + b_sqr * cos_r_sqr))
+				p3 = extend_line(Geom::Point3d.new([0,0,0]), p2, ell_radius)
+				z = p3[2] + @g_center[2]
+				p3[2] = z
+				
+				points.push(p3)
+			end
+			
+			#create the lines
+			for i in 0 .. sections - 1
+				Sketchup.active_model.entities.add_line points[i], points[(i+1)%sections]
+			end
+			
+		end
+
+		#Returns the radius of an ellipse at angle theta (0-2PI)
+		def get_ellipse_radius(a, b, theta)
+		
+			a_sqr = a * a
+			b_sqr = b * b
+			cos_theta_sqr = Math::cos(theta) * Math::cos(theta)
+			sin_theta_sqr = Math::sin(theta) * Math::sin(theta)
+			
+			radius = Math.sqrt((a_sqr * b_sqr) / (a_sqr * sin_theta_sqr + b_sqr * cos_theta_sqr))
+
+			return radius
+		end
+		
+		
+		#Returns the radius of an ellipsoid at angle theta (0-2PI from x [longitude]) and phi (0-PI from z [latitude])
+		def get_ellipsoid_radius(a, b , c, theta, phi)
+		
+			a_sqr = a * a
+			b_sqr = b * b
+			c_sqr = c * c
+			cos_theta_sqr = Math::cos(theta) * Math::cos(theta)
+			sin_theta_sqr = Math::sin(theta) * Math::sin(theta)
+			cos_phi_sqr = Math::cos(phi) * Math::cos(phi)
+			sin_phi_sqr = Math::sin(phi) * Math::sin(phi)
+			
+			radius = Math.sqrt((a_sqr * b_sqr * c_sqr) / (b_sqr * c_sqr * cos_theta_sqr * sin_phi_sqr + a_sqr * c_sqr * sin_theta_sqr * sin_phi_sqr + a_sqr * b_sqr * cos_phi_sqr))
+
+			return radius
+		end
+		
+		#Returns angle from x axis (rotation around z-axis)
+		def get_theta(p)
+		
+			v = Geom::Vector3d.new([p[0], p[1], 0])
+			theta = v.angle_between([1, 0, 0])
+			if (p[1] < 0 )
+				theta = theta + Math::PI
+			end 
+			a = theta * 180 / Math::PI
+			#puts "get_theta: #{p[0]}, #{p[1]}, #{p[2]} [- #{@g_center[2]} to 1, 0, 0 : #{a}"
+			return theta
+		end
+
+		#Returns angle from +z axis 
+		def get_phi(p)
+		
+			v = Geom::Vector3d.new([p[0], p[1], p[2] - @g_center[2]])
+			phi = v.angle_between([0, 0, 1])
+
+			return phi
+		end
+		
 		#Creates the points of the tessellated icosahedron
 		#the points from this are used to draw all other aspects of the dome
 		def create_icosahedron()
 			# Get handles to our model and the Entities collection it contains.
 			model = Sketchup.active_model
 			entities = model.entities
-
-			#Calculate golden section
-			golden_section = (1 + Math.sqrt(5)) / 2
+						
+			#Used to draw bounding ellipses for debugging
+			#create_ellipse(Geom::Vector3d.new([@g_radius_x, 0, 0]), Geom::Vector3d.new([0, @g_radius_y, 0]))
+			#create_ellipse(Geom::Vector3d.new([0, @g_radius_y, 0]), Geom::Vector3d.new([0, 0, @g_radius_z]))
+			#create_ellipse(Geom::Vector3d.new([0, 0, @g_radius_z]), Geom::Vector3d.new([@g_radius_x, 0, 0]))
 			
-			#Get variables for creating the 3 perpendicular rectangles the icosahedron will be created from
-			b = Math.sqrt((@g_radius * @g_radius) / (golden_section * golden_section + 1))
-			a = b * golden_section
+			x_sqr = @g_radius_x * @g_radius_x
+			y_sqr = @g_radius_y * @g_radius_y
+			z_sqr = @g_radius_z * @g_radius_z
 
-			#create an icosahedron and rotate it around the z-axis 30 degrees so that hemispheres lie flat
+			#create an icosahedron and rotate it around the z-axis 31.7 degrees so that hemispheres lie flat
 			# Create a series of "points", each a 3-item array containing x, y, and z.
 			p = Geom::Point3d.new([0,0,0])	# rotate from the origin
 			v = Geom::Vector3d.new([0,1,0]) # axis of rotation
-			r = Math::PI / 180 * 31.7		# rotate so hemisphere is level
+			#angle = 31.7
+			angle = 0
+			r = Math::PI / 180 * angle		# rotate so hemisphere is level
 			t1 = Geom::Transformation.rotation(p, v, r)
-
-			#translation transformation to account for the origin centered start and the fraction of dome desired
-			t2 = Geom::Transformation.translation(@g_center)
-
-			#create the points of the icosahedron
-			icosahedron = []
-			c = [-a, -b, 0, a, -b, 0, a, b, 0, -a, b, 0, -b, 0, -a, b, 0, -a, b, 0, a, -b, 0, a, 0, a, b, 0, -a, b, 0, -a, -b, 0, a, -b]
+			t2 = Geom::Transformation.translation(Geom::Vector3d.new([0,0,@g_center[2]]))
 			
-			for i in 0..11
-				d = i * 3
-				j = c[d]
-				k = c[d + 1]
-				l = c[d + 2]
-				icosahedron.push(Geom::Point3d.new([j, k, l]).transform!(t1).transform!(t2))			
-			end
-					
+			#Array to hold the icosahedron points
+			icosahedron = []
+
+			#Calculate the golden ratio
+			gr = (1 + Math::sqrt(5)) / 2
+
+						
+			#calculate the rotated point in the 'x axis' face
+			c1 = (Geom::Point3d.new([-gr, 1, 0]).transform!(t1).transform!(t2))	
+			c2 = (Geom::Point3d.new([gr, 1, 0]).transform!(t1).transform!(t2))
+			c3 = (Geom::Point3d.new([gr, -1, 0]).transform!(t1).transform!(t2))
+			c4 = (Geom::Point3d.new([-gr, -1, 0]).transform!(t1).transform!(t2))
+			e1 = get_ellipse_radius(@g_radius_x, @g_radius_y, get_theta(c1))
+			e2 = get_ellipse_radius(@g_radius_x, @g_radius_y, get_theta(c1))
+			e3 = get_ellipse_radius(@g_radius_x, @g_radius_y, get_theta(c1))
+			e4 = get_ellipse_radius(@g_radius_x, @g_radius_y, get_theta(c1))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c1, e1)))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c2, e2)))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c3, e3)))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c4, e4)))
+			#@geodesic.entities.add_face(icosahedron[0], icosahedron[1], icosahedron[2], icosahedron[3]) 
+			
+			#calculate the rotated point in the 'y axis' face
+			c1 = (Geom::Point3d.new([0, -gr, -1]).transform!(t1).transform!(t2))
+			c2 = (Geom::Point3d.new([0, gr, -1]).transform!(t1).transform!(t2))	
+			c3 = (Geom::Point3d.new([0, gr, 1]).transform!(t1).transform!(t2))
+			c4 = (Geom::Point3d.new([0, -gr, 1]).transform!(t1).transform!(t2))
+			e1 = get_ellipse_radius(@g_radius_z , @g_radius_y, get_phi(c1))
+			e2 = get_ellipse_radius(@g_radius_z , @g_radius_y, get_phi(c2))
+			e3 = get_ellipse_radius(@g_radius_z , @g_radius_y, get_phi(c3))
+			e4 = get_ellipse_radius(@g_radius_z , @g_radius_y, get_phi(c4))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c1, e1)))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c2, e2)))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c3, e3)))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c4, e4)))
+			#@geodesic.entities.add_face(icosahedron[4], icosahedron[5], icosahedron[6], icosahedron[7]) 
+
+			#calculate the rotated point in the 'z axis' face
+			c1 = (Geom::Point3d.new([-1, 0, gr]).transform!(t1).transform!(t2))	
+			c2 = (Geom::Point3d.new([1, 0, gr]).transform!(t1).transform!(t2))
+			c3 = (Geom::Point3d.new([1, 0, -gr]).transform!(t1).transform!(t2))
+			c4 = (Geom::Point3d.new([-1, 0, -gr]).transform!(t1).transform!(t2))
+			e1 = get_ellipse_radius(@g_radius_z, @g_radius_x, get_phi(c1))
+			e2 = get_ellipse_radius(@g_radius_z, @g_radius_x, get_phi(c2))
+			e3 = get_ellipse_radius(@g_radius_z, @g_radius_x, get_phi(c3))
+			e4 = get_ellipse_radius(@g_radius_z, @g_radius_x, get_phi(c4))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c1, e1)))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c2, e2)))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c3, e3)))
+			icosahedron.push(Geom::Point3d.new(extend_line(Geom::Point3d.new(@g_center), c4, e4)))
+			#@geodesic.entities.add_face(icosahedron[8], icosahedron[9], icosahedron[10], icosahedron[11]) 
+									
 			icosa_faces = []			
-			c = [1, 6, 9, 1, 2, 6, 2, 6, 8, 6, 7, 8, 6, 7, 9, 1, 9, 10, 1, 5,  10, 1, 2, 5, 2, 5, 11, 2, 8, 11, 4, 5, 10, 4, 5, 11, 0, 4, 10, 0, 9, 10, 0, 7, 9, 3, 7, 8, 0, 3, 7, 0, 3, 4, 3,4, 11, 3, 8, 11] 			
+			#create the triangles (faces) clockwise
+			c = [5,10,1,1,10,2,2,10,4,4,10,11,4,11,3,3,11,0,0,11,5,5,11,10,   0,5,6,6,5,1,2,4,7,7,4,3,   9,6,1,9,1,2,9,2,7,9,7,8,8,7,3,8,3,0,8,0,6,8,6,9] 			
+			
 			for i in 0..19
 				d = i * 3
 				j = c[d]
 				k = c[d + 1]
 				l = c[d + 2]
 				# draw the triangles of the icosahedron
-				if(@draw_primitive_solid_faces == 1)
-					if (all_pos_z([icosahedron[j], icosahedron[k], icosahedron[l]]) == 0)
-						icosa_faces.push(@geodesic.entities.add_face(icosahedron[j], icosahedron[k], icosahedron[l])) 
-					end
-				end
+				#if(@draw_primitive_solid_faces == 1)
+					#if (all_pos_z([icosahedron[j], icosahedron[k], icosahedron[l]]) == 0)
+						#icosa_faces.push(@geodesic.entities.add_face(icosahedron[j], icosahedron[k], icosahedron[l])) 
+					#end
+				#end
+				
 				#decompose each face of the icosahedron
 				tessellate(icosahedron[j], icosahedron[k], icosahedron[l])
-			end					
+			end	
+
+			#Process and triangles that were clipped
+			process_clipped_triangles()
+			
+			end
+		
+		def process_clipped_triangles()
+			p = Geom::Point3d.new ([0, 0, 0])
+			v = Geom::Vector3d.new 0, 0, 1
+		
+			@clipped_triangles.each do |t|
+				ppp = find_third_point([t[0], t[1], t[2]])
+
+				if (ppp != nil)
+					intersect = intersect_line_plane(@primitive_points[t[1]], @primitive_points[ppp], p, v, 0.000001)
+					pt = find_point(intersect)
+					i_p = 0
+					if (pt != nil)
+						puts "found intersect"
+						i_p = pt
+					else
+						@primitive_points.push intersect
+						i_p = @primitive_points.size - 1
+					end
+					intersect2 = intersect_line_plane(@primitive_points[t[0]], @primitive_points[t[2]], p, v, 0.000001)
+					pt = find_point(intersect2)
+					i2_p = 0
+					if (pt != nil)
+						puts "found intersect2"
+						i2_p = pt
+					else
+						@primitive_points.push intersect
+						i2_p = @primitive_points.size - 1
+					end
+					
+					puts "#{intersect} #{intersect2} #{@primitive_points[t[0]]}"
+					#face = @geodesic.entities.add_face @primitive_points[t[0]], intersect, intersect2
+					#face = @geodesic.entities.add_face @primitive_points[t[0]], @primitive_points[i_p], @primitive_points[i2_p]
+
+					#face.material = 'red'
+					#face.back_material = 'red'
+					@triangle_points.push([@primitive_points[t[0]], intersect, intersect2])
+
+					puts "p #{t[0]} : #{@primitive_points[t[0]]}"
+					puts "i #{i_p} : #{intersect}"
+					puts "i2 #{i2_p} : #{intersect2}"
+					#@strut_points.push ([i_p, i2_p])
+					#@strut_points.push ([i2_p, t[0]])
+					#@strut_points.push ([t[0], i_p])
+					
+				end 
+			end
+		end
+		
+		#returns the pimitive_point id is the inpput point exists
+		def find_point(point)
+			ret = nil
+			for p in 0 .. (@primitive_points.size - 1)
+				if (@primitive_points[p][0] == point[0] and @primitive_points[p][0] == point[0] and @primitive_points[p][0] == point[0])
+					return p
+				end
+			end			
+			return ret
 		end
 		
 		def all_pos_z(pts)
-			if (pts[0][2] > -@g_tolerance && pts[1][2] > -@g_tolerance && pts[1][2] > -@g_tolerance)
+			if (pts[0][2] > -(@g_tolerance) && pts[1][2] > -(@g_tolerance) && pts[1][2] > -(@g_tolerance))
 				return 0
 			else
 				return 1
@@ -566,7 +820,7 @@ module Geodesic
 		
 			#Create a list of points along with their presorted indices
 			@primitive_points.each_with_index { |c, index|
-				if (c[2] > -@g_tolerance) then 
+				if (c[2] > -(@g_tolerance)) then 
 					indexed_points.push([index, c[0], c[1], c[2]]) 
 				end
 			}
@@ -635,10 +889,10 @@ module Geodesic
 			
 			#Create a vertical strut at the origin to use as a component
 			vstrut = @geodesic.entities.add_group		#create group to hold our strut
-			ht = @wood_strut_thickness / 2
-			hd = @wood_strut_depth / 2
+			ht = @rect_strut_thickness / 2
+			hd = @rect_strut_depth / 2
 			top_face = vstrut.entities.add_face [-ht, hd, 0], [ht, hd, 0], [ht, -hd, 0], [-ht, -hd, 0]
-			hgt = (@base_frame_height - 2 * @wood_strut_thickness)
+			hgt = (@base_frame_height - 2 * @rect_strut_thickness)
 			top_face.pushpull hgt, true
 			vstrut_comp = vstrut.to_component			
 			#get the definition of the vstrut so we can make more
@@ -652,7 +906,7 @@ module Geodesic
 				#Create a vector of inset length (this will be how far back from the hub the strut starts
 				v = []
 				v[0] = Geom::Vector3d.new(p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
-				v[0].length = @wood_strut_dist_from_hub
+				v[0].length = @rect_strut_dist_from_hub
 				
 				#calculate the inset point ends 
 				pt1 = p1 + v[0]
@@ -662,14 +916,14 @@ module Geodesic
 				v[1] = Geom::Vector3d.new(@g_center.vector_to(p1))
 				v[2] = Geom::Vector3d.new(@g_center.vector_to(p2))
 				v[3] = Geom::Vector3d.new(p2.vector_to(p1))
-				v[4] = Geom::Vector3d.new([0, 0, @wood_strut_thickness])
+				v[4] = Geom::Vector3d.new([0, 0, @rect_strut_thickness])
 
 				#calculate the normal
 				n1 = v[1].cross v[3]
 				n2 = v[2].cross v[3]
 				
-				n1.length = @wood_strut_thickness / 2 
-				n2.length = @wood_strut_thickness / 2 
+				n1.length = @rect_strut_thickness / 2 
+				n2.length = @rect_strut_thickness / 2 
 				
 				#create the outer facing points
 				pt3 = pt1 + n1	
@@ -695,8 +949,8 @@ module Geodesic
 				p4f = p2b - v[4]
 		
 				#create the inner facing points
-				v[1].length = @wood_strut_depth
-				v[2].length = @wood_strut_depth
+				v[1].length = @rect_strut_depth
+				v[2].length = @rect_strut_depth
 				
 				pt7 = p1b - v[1]
 				pt8 = p2b - v[2]
@@ -704,8 +958,8 @@ module Geodesic
 				pt10 = Geom::Point3d.new pt8 - v[4]
 				pt9[2] = p3f[2]
 				pt10[2] = p4f[2]
-				pt9 = extend_line(p3f, pt9, @wood_strut_depth)
-				pt10 = extend_line(p4f, pt10, @wood_strut_depth)
+				pt9 = extend_line(p3f, pt9, @rect_strut_depth)
+				pt10 = extend_line(p4f, pt10, @rect_strut_depth)
 			
 				p7_2 = Geom.intersect_line_line [pt9, pt9 + v[4]], [pt7, pt7 - v[1]]
 				p8_2 = Geom.intersect_line_line [pt10, pt10 + v[4]], [pt8, pt8 - v[2]]
@@ -718,7 +972,7 @@ module Geodesic
 				t1 = p1 + v[4]
 				t2 = p2 + v[4]
 
-				v[0].length = @wood_strut_dist_from_hub * 2
+				v[0].length = @rect_strut_dist_from_hub * 2
 				#Front Point Determination	
 				status, pt11 = line_plane_intersection([p1t, p1t - v[0]], [@g_center, p1, t1])
 				if (status == 1) then
@@ -739,14 +993,14 @@ module Geodesic
 					p17 = pt11 - v[5] - v[5]
 					p19 = p17 - v[4]
 					p19[2] = p13[2]
-					p21 = extend_line(p13, p19, @wood_strut_depth)
+					p21 = extend_line(p13, p19, @rect_strut_depth)
 				end 
 				status, pt12 = line_plane_intersection([p16, p16 + v[0]], [@g_center, p2, t2])
 				if (status == 1) then
 					p18 = pt12 - v[6] - v[6]
 					p20 = p18 - v[4]
 					p20[2] =  p14[2]
-					p22 = extend_line(p14, p20, @wood_strut_depth)
+					p22 = extend_line(p14, p20, @rect_strut_depth)
 				end 
 				
 				#Create the top of the frame (horizontal strut)
@@ -766,10 +1020,10 @@ module Geodesic
 
 				
 				#Create a vertical strut 
-				#fsh = Geom::Vector3d.new [0,0, -(@base_frame_height - 2 * @wood_strut_thickness)]	#vertical frame strut height
+				#fsh = Geom::Vector3d.new [0,0, -(@base_frame_height - 2 * @rect_strut_thickness)]	#vertical frame strut height
 				#s_vec = tf1 - tf2
 				#f_vec = fsh.cross s_vec
-				#f_vec.length = @wood_strut_depth
+				#f_vec.length = @rect_strut_depth
 				#tf5 = tf3 - f_vec
 				#tf6 = tf3 + f_vec
 				#check for an intersection so we know the vector has the right sign
@@ -783,8 +1037,8 @@ module Geodesic
 				#	tf5_6_2 = tf4 + f_vec
 				#end
 
-				#tf7 = extend_line(tf5_6_1, tf2, @wood_strut_thickness)
-				#tf8 = extend_line(tf3, tf4, @wood_strut_thickness)
+				#tf7 = extend_line(tf5_6_1, tf2, @rect_strut_thickness)
+				#tf8 = extend_line(tf3, tf4, @rect_strut_thickness)
 				#create_solid([tf5_6_1 ,tf7 ,tf5_6_1 + fsh ,tf7 + fsh, tf3, tf8, tf3 + fsh, tf8 + fsh])
 				
 				#Turn the Vertical Strut into a component for reuse
@@ -792,7 +1046,7 @@ module Geodesic
 				#v_strut_comp = v_strut_grp.to_component
 				#v_strut_def = v_strut_comp.definition
 				
-				#m1 = extend_line(tf5_6_1, tf2, @wood_strut_thickness)
+				#m1 = extend_line(tf5_6_1, tf2, @rect_strut_thickness)
 				#trans = Geom::Transformation.translation(m1)
 				#new_v_strut = @geodesic.entities.add_instance v_strut_def, trans
 			
@@ -817,7 +1071,7 @@ module Geodesic
 					add_sphere_hubs()
 				end
 				
-				if (@draw_metal_hubs == 1)
+				if (@draw_cylinder_hubs == 1)
 					add_metal_hubs()
 				end
 			end
@@ -831,7 +1085,7 @@ module Geodesic
 				#only draw hubs at unique points (the primitive_points list contains duplicates)
 				if (isPointUnique(u_hubs, c) == -1)
 					u_hubs.push(c)
-					if (c[2] > -@g_tolerance)
+					if (c[2] > -(@g_tolerance))
 						@geodesic.entities.add_cpoint c
 					end
 				end
@@ -869,7 +1123,7 @@ module Geodesic
 				#only draw hubs at unique points (the primitive_points list contains duplicates				
 				if (isPointUnique(u_hubs, c) == -1)
 					u_hubs.push(c)
-					if (c[2] > -@g_tolerance)
+					if (c[2] > -(@g_tolerance))
 						#Create some copies of our hub component
 						trans = Geom::Transformation.translation(c)
 						new_hub = @geodesic.entities.add_instance hub_def, trans
@@ -887,7 +1141,8 @@ module Geodesic
 		#Smooth the edges of a shape
 		def smooth(shape)
 			edges = []
-			shape.to_a.each{|e|
+			
+			Array(shape).each{|e|
 				edges << e if e.class == Sketchup::Edge
 				e.entities.each{|ee|edges << ee if ee.class == Sketchup::Edge}if e.class == Sketchup::Group
 			}
@@ -927,7 +1182,7 @@ module Geodesic
 				if (isPointUnique(u_hubs, i) == -1)
 					u_hubs.push(i)
 					#Draw only the positive hub for a dome
-					if (i[2] > -@g_tolerance)
+					if (i[2] > -(@g_tolerance))
 						#Create some copies of our hub component
 
 						hub = @geodesic.entities.add_group
@@ -936,7 +1191,7 @@ module Geodesic
 						outer_end_face = hub.entities.add_face outer_circle
 						inner_end_face = hub.entities.add_face inner_circle
 						hub.entities.erase_entities inner_end_face		#remove the inner face we just added (need to do this to create cylinder end
-						outer_end_face.pushpull -@metal_hub_depth_depth, false
+						outer_end_face.pushpull -(@metal_hub_depth_depth), false
 						#cycle through the sphere faces and assign material to all
 						faces = []
 						hub.entities.each{|f|
@@ -1022,13 +1277,13 @@ module Geodesic
 			@u_struts = []
 			#Add the struts
 			@strut_points.each { |c|
-				if (@primitive_points[c[0]][2] > -@g_tolerance && @primitive_points[c[1]][2] > -@g_tolerance) then
+				if (@primitive_points[c[0]][2] > -(@g_tolerance) && @primitive_points[c[1]][2] > -(@g_tolerance)) then
 					if (isLineUnique(@u_struts, [@primitive_points[c[0]], @primitive_points[c[1]]]) == -1)
 						@u_struts.push([@primitive_points[c[0]], @primitive_points[c[1]]])
 						
 						if (@draw_struts == 1)
 							if (@draw_wood_struts == 1)
-								@all_edges.push(add_wood_strut(@primitive_points[c[0]], @primitive_points[c[1]], @wood_strut_dist_from_hub))
+								@all_edges.push(add_wood_strut(@primitive_points[c[0]], @primitive_points[c[1]], @rect_strut_dist_from_hub))
 							end
 							
 							if (@draw_cylinder_struts == 1)
@@ -1037,7 +1292,7 @@ module Geodesic
 						end
 						#Add the hub plates
 						#This currently relies on being here so that it gets the correct faces passed to it.
-						if (@draw_metal_hubs == 1)
+						if (@draw_cylinder_hubs == 1)
 							#add_hub_plates(strut_faces, @strut_hubs[c[0]], @strut_hubs[c[1]], strut_dist_from_hub)
 						end
 					end
@@ -1061,8 +1316,8 @@ module Geodesic
 				#calculate the normal
 				n1 = v1.cross v3
 				n2 = v2.cross v3
-				n1.length = @wood_strut_thickness / 2
-				n2.length = @wood_strut_thickness / 2
+				n1.length = @rect_strut_thickness / 2
+				n2.length = @rect_strut_thickness / 2
 
 				#create the outer facing points
 				pt = []
@@ -1072,8 +1327,8 @@ module Geodesic
 				pt[3] = pp2 - n2
 
 				#create the inner facing points
-				v1.length = @wood_strut_depth
-				v2.length = @wood_strut_depth
+				v1.length = @rect_strut_depth
+				v2.length = @rect_strut_depth
 				
 				pt[4] = pt[2] - v1
 				pt[5] = pt[3] - v1
@@ -1099,10 +1354,10 @@ module Geodesic
 				v = Geom::Vector3d.new(center - m1)		#Vector we'll use for orientating all frame struts
 				v.length = m1.distance(pp0)
 				
-				seperation = @frame_separation / 2	#first distance is 1/2 amount as it is either side of center
-				dist_left = pt_a.distance(pt_b) / 2 - seperation - @wood_strut_dist_from_hub
+				seperation = @frame_separation / 2	#first distance is 1/2 amount as it is either side of centre
+				dist_left = pt_a.distance(pt_b) / 2 - seperation - @rect_strut_dist_from_hub
 				offset = seperation
-				half_thickness = @wood_strut_thickness / 2
+				half_thickness = @rect_strut_thickness / 2
 				while (dist_left > @frame_separation / 2 + half_thickness)
 					ex1_1 = extend_line(m1, pp1, offset - half_thickness)
 					ex1_2 = extend_line(m1, pp1, offset + half_thickness)
@@ -1121,7 +1376,7 @@ module Geodesic
 					status, i2_2e = line_plane_intersection([i2_2, i2_2 + v], [pl2[0], pl2[1], pl2[2]])
 					
 					v2 = Geom::Vector3d.new(@g_center.vector_to(i1_1))
-					v2.length = @wood_strut_depth
+					v2.length = @rect_strut_depth
 					i3_1 = i1_1 - v2
 					i3_2 = i1_2 - v2
 					i4_1 = i2_1 - v2
@@ -1175,7 +1430,7 @@ module Geodesic
 			
 			#Create a vector of inset length (this will be how far back from the hub the strut starts
 			v1 = Geom::Vector3d.new(p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
-			v1.length = @wood_strut_dist_from_hub
+			v1.length = @rect_strut_dist_from_hub
 			
 			#calculate the inset point ends 
 			pt1 = Geom::Point3d.new(p1[0] + v1[0], p1[1] + v1[1], p1[2] + v1[2])
@@ -1189,8 +1444,8 @@ module Geodesic
 			#calculate the normal
 			n1 = v2.cross v4
 			n2 = v3.cross v4
-			n1.length = @wood_strut_thickness / 2
-			n2.length = @wood_strut_thickness / 2
+			n1.length = @rect_strut_thickness / 2
+			n2.length = @rect_strut_thickness / 2
 
 			#create the outer facing points
 			pt3 = pt1 + n1
@@ -1199,8 +1454,8 @@ module Geodesic
 			pt6 = pt2 - n2
 			
 			#create the inner facing points
-			v2.length = @wood_strut_depth
-			v3.length = @wood_strut_depth
+			v2.length = @rect_strut_depth
+			v3.length = @rect_strut_depth
 			
 			pt7 = pt3 - v2
 			pt8 = pt4 - v2
@@ -1248,13 +1503,76 @@ module Geodesic
 			return c
 		end
 		
-		#Return the midpoitn of two points
+		#Return the midpoint of two points
 		def midpoint(p1, p2)
 			v = Geom::Vector3d.new(p2 - p1)
 			v.length = p1.distance(p2) / 2
 			
 			return p1 + v
 		end
+			
+		def dot_product (l1, l2)
+			#l1.zip(l2).map { |a,b| a*b }.inject {|sum,el| sum+el}
+			
+			sum=0
+			for a in 0 .. 2
+				sum+= l1[a] * l2[a]
+			end
+			
+			return sum
+		end
+		
+		#<given 3 points of a triangle find the co-joined triangle that has both p0 and p1 in common
+		def find_third_point(triangle)
+		
+			for t in 0 .. (@triangle_points.size - 1)
+				a = nil
+				a = 0 if (@triangle_points[t][0] == triangle[0])
+				a = 1 if (@triangle_points[t][1] == triangle[0])
+				a = 2 if (@triangle_points[t][2] == triangle[0])
+				b = nil
+				b = 0 if (@triangle_points[t][0] == triangle[1])
+				b = 1 if (@triangle_points[t][1] == triangle[1])
+				b = 2 if (@triangle_points[t][2] == triangle[1])	
+				#puts "#{@triangle_points[t]} #{triangle}"
+				#puts "#{@triangle_points[t]} : #{triangle}"
+				#puts "a: #{a} b: #{b}"
+				if (a != nil and b != nil and @triangle_points[t][3 - a - b] != triangle[2])
+					puts "** #{@triangle_points[t][3 - a - b]} : #{@triangle_points[t]} #{triangle}"
+					return @triangle_points[t][3 - a - b]
+				end
+			end	
+			puts "no match!"
+			
+			return nil		#didn't find a match (there should always be a match)
+		end
+		
+		def intersect_line_plane(p0, p1, p_co, p_no, epsilon)
+			#p0, p1: define the line
+			#p_co, p_no: define the plane:
+			#p_co is a point on the plane (plane coordinate).
+			#p_no is a normal vector defining the plane direction; does not need to be normalized.
+
+			#return a Vector or None (when the intersection can't be found).
+			
+			u = p1 - p0
+			w = p_co - p0
+			dot = dot_product(p_no, u)
+
+			if (dot.abs > epsilon)
+				# the factor of the point between p0 -> p1 (0 - 1)
+				# if 'fac' is between (0 - 1) the point intersects with the segment.
+				# otherwise:
+				#  < 0.0: behind p0.
+				#  > 1.0: infront of p1.
+				fac = -dot_product(p_no, w) / dot
+				u2 = Geom::Vector3d.new u[0] * fac, u[1] * fac, u[2] * fac
+				return p0 - u2
+			else
+				# The segment is parallel to plane
+				return nil
+			end
+		end 
 		
 		# Given 3 points that make up a triangle, decompose the triangle into 
 		# [@g_frequency] smaller triangles along each side
@@ -1266,56 +1584,224 @@ module Geodesic
 			$p_s = [p1[0] + (p3[0] - p1[0]) * rf, p1[1] + (p3[1] - p1[1]) * rf, p1[2] + (p3[2] - p1[2]) * rf]
 			$p_e = [p2[0] + (p3[0] - p2[0]) * rf, p2[1] + (p3[1] - p2[1]) * rf, p2[2] + (p3[2] - p2[2]) * rf]
 
+			#keep any intersect points here until we can integrate them in the main list at the end
+			intersect_points = []
+			intersect_lines = []
+			intersect_triangles = []
 			while c < order
-			
+				#puts "c: #{c} order: #{order}"
 				if (order == 1)
+					#theta = get_theta($p_s)
+					#phi = get_phi($p_s)
+					#p = Geom::Point3d.new([$p_s[0], $p_s[1], $p_s[2]])
+					#l = get_ellipsoid_radius(@g_radius_x, @g_radius_y , @g_radius_z, theta, phi)
+					#@primitive_points.push(Geom::Point3d.new(extend_line(@g_center, p, l)))
 					@primitive_points.push(Geom::Point3d.new([$p_s[0], $p_s[1], $p_s[2]]))	
 				else 
+					#calculate the location of the tessellated point on the triangle
 					co1 = c.to_f / (order - 1)
 					x = $p_s[0] + ($p_e[0] - $p_s[0]) * co1
 					y = $p_s[1] + ($p_e[1] - $p_s[1]) * co1
 					z = $p_s[2] + ($p_e[2] - $p_s[2]) * co1
 					p = Geom::Point3d.new([x, y, z])
-					
-					length = @g_center.distance(p)
-					ratio = @g_radius.to_f / length
+
 					v = @g_center.vector_to(p)
-					v.length = @g_radius
+					plane_proj = Geom::Vector3d.new x, y, @g_center[2]
+					x_axis = Geom::Vector3d.new 1, 0, 0
+					z_axis = Geom::Vector3d.new 0, 0, 1
 					
-					@primitive_points.push(Geom::Point3d.new(extend_line(@g_center, p, @g_radius)))
+					theta = get_theta(p)
+					phi = get_phi(p)
+									
+					v.length = get_ellipsoid_radius(@g_radius_x, @g_radius_y , @g_radius_z, theta, phi)
+					new_p = Geom::Point3d.new(extend_line(@g_center, p, v.length))
+					
+					
+					#text=Sketchup.active_model.active_entities.add_text("theta: #{tt} phi: #{pp}", new_p, v)
+
+					@primitive_points.push(new_p)
 				end
 				p_num = @primitive_points.size() - 1
 			
 				if (c > 0)
 					#if (@primitive_points[p_num][2] >= -1 * @g_tolerance && @primitive_points[p_num - 1][2] >= -1 * @g_tolerance)
+						#create 'horizontal' strut
 						@strut_points.push([p_num - 1, p_num])
 					#end
 				end
 			
 				if (order < @g_frequency + 1)
-					#if (@primitive_points[p_num - order][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance)
+					#if (@primitive_points[p_num - order][2] >= -(@g_tolerance) && @primitive_points[p_num][2] >= -(@g_tolerance))
+						#create 'diagonal' strut 1
 						@strut_points.push([p_num - order, p_num])
 					#end			
-					#if (@primitive_points[p_num - order - 1][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance)
+					#if (@primitive_points[p_num - order - 1][2] >= -(@g_tolerance) && @primitive_points[p_num][2] >= -(@g_tolerance))
+						#create 'diagonal' strut 1
 						@strut_points.push([p_num - order - 1, p_num])
 					#end
 
-					if (@primitive_points[p_num - order][2] >= -@g_tolerance && @primitive_points[p_num - order - 1][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance)
+					#add faces (if they are above z-axis) so that we draw a dome instead of an egg
+					#positive_count = 0 
+					
+					negatives = []
+					positives = []
+					if (@primitive_points[p_num - order][2] >= 0) 
+						#positive_count += 1
+						positives.push (p_num - order)
+					else 
+						negatives.push (p_num - order)
+					end
+					if (@primitive_points[p_num - order - 1][2] >= 0)
+						#positive_count += 1	
+						positives.push (p_num - order - 1)
+					else
+						negatives.push (p_num - order - 1)
+					end
+					if (@primitive_points[p_num][2] >= 0)
+						#positive_count += 1	
+						positives.push p_num
+					else 
+						negatives.push p_num
+					end
+					if (positives.size == 3)
 						if (@draw_tessellated_faces == 1)
+							#add 'upside down' faces
+							#    *****
+							#     * *
+							#      *
+							
 							face = @geodesic.entities.add_face @primitive_points[p_num - order], @primitive_points[p_num - order - 1], @primitive_points[p_num]	
 							face.material = @face_material
 							face.back_material = @face_material
 						end
 						@triangle_points.push([p_num - order, p_num - order - 1, p_num])
+					elsif (positives.size == 2)
+						#support for clipped triangle						
+						p = Geom::Point3d.new([0, 0, 0])
+						v = Geom::Vector3d.new 0, 0, 1
+						if (@primitive_points[positives[0]][2] > @primitive_points[positives[1]][2])
+							preferred_positive = 0
+						else
+							preferred_positive = 1
+						end
+						#puts "p0: #{positives[0]} p1: #{ negatives[0]}"
+						intersect = intersect_line_plane(@primitive_points[positives[preferred_positive]], @primitive_points[negatives[0]], p, v, 0.000001)
+						#@geodesic.entities.add_line [0, 0, 0], intersect
+						#@geodesic.entities.add_line positives[preferred_positive], negatives[0]	
+						#puts "new face: #{positives[0]}, #{positives[1]}, #{intersect}"
+						if (intersect != @primitive_points[positives[0]] and intersect != @primitive_points[positives[1]])
+							intersect_points.push(Geom::Point3d.new(intersect))
+							intersect_lines.push([intersect_points.size - 1, positives[0]])
+							intersect_lines.push([intersect_points.size - 1, positives[1]])
+							intersect_triangles.push([positives[0], positives[1], intersect_points.size - 1])
+							#puts "i_t: #{intersect_triangles.size}"
+								
+							#if (@draw_tessellated_faces == 1)
+								#face = @geodesic.entities.add_face @primitive_points[positives[0]], @primitive_points[positives[1]], intersect
+								#face.material = [0, 255, 255]
+								#face.back_material = [0, 255, 255]
+								#face.material = @face_material
+								#face.back_material = @face_material
+							#end
+						end
+						@triangle_points.push([p_num - order, p_num - order - 1, p_num])
+					elsif (positives.size == 1)
+						#@geodesic.entities.add_face @primitive_points[p_num - order], @primitive_points[p_num - order - 1], @primitive_points[p_num]
+						
+						arr = [p_num - order, p_num - order - 1, p_num]
+
+						arr2 = sort_by_z(arr)
+						#arr2 = arr.sort_by{|a| a[2]}.reverse
+						#@clipped_triangles.push [p_num - order, p_num - order - 1, p_num]
+						#puts "arr2: #{@primitive_points[arr2[0]]} #{@primitive_points[arr2[1]]} #{@primitive_points[arr2[2]]}"
+						@clipped_triangles.push [arr2[0], arr2[1], arr2[2]]
+						#we need the two points with the highest z axis values in the first 2 positions to find the other co-incident triangle
+						#ppp = find_third_point([arr[0], arr[1], arr[2]])
+						#puts "ppp: #{ppp}"
+						#@triangle_points.push([p_num - order, p_num - order - 1, p_num])
+					else # all negative
+						@triangle_points.push([p_num - order, p_num - order - 1, p_num])
 					end
 
+					#add faces (if they are above z-axis) so that we draw a dome instead of an egg
 					if (c > 0)
-						if (@primitive_points[p_num - order - 1][2] >= -@g_tolerance && @primitive_points[p_num][2] >= -@g_tolerance && @primitive_points[p_num - 1][2] >= -@g_tolerance)
+						#positive_count = 0
+						negatives = []
+						positives = []
+						if (@primitive_points[p_num - order - 1][2] >= 0) 
+							#positive_count += 1
+							positives.push (p_num - order - 1)
+						else 
+							negatives.push (p_num - order - 1)
+						end
+						if (@primitive_points[p_num][2] >= 0)
+							#positive_count += 1	
+							positives.push p_num
+						else 
+							negatives.push p_num
+						end
+						if (@primitive_points[p_num - 1][2] >= 0)
+							#positive_count += 1		
+							positives.push (p_num - 1)
+						else 
+							negatives.push (p_num - 1)
+						end
+						if (positives.size == 3)
 							if (@draw_tessellated_faces == 1)
+								#add 'right side up' faces
+								#      *
+								#     * *
+								#    *****
+								
 								face = @geodesic.entities.add_face @primitive_points[p_num - order - 1], @primitive_points[p_num], @primitive_points[p_num - 1]		
 								face.material = @face_material
 								face.back_material = @face_material
 							end
+							@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
+						elsif (positives.size == 2)
+							#support for clipped triangle
+							p = Geom::Point3d.new([0, 0, 0])
+							v = Geom::Vector3d.new 0, 0, 1
+							if (@primitive_points[positives[0]][2] > @primitive_points[positives[1]][2])
+								preferred_positive = 0
+							else
+								preferred_positive = 1
+							end
+							#puts "2 p0: #{positives[0]} p1: #{ negatives[0]}"
+							intersect = intersect_line_plane(@primitive_points[positives[preferred_positive]], @primitive_points[negatives[0]], p, v, 0.000001)
+							if (intersect != @primitive_points[positives[0]] and intersect != @primitive_points[positives[1]])
+								intersect_points.push(intersect)
+								intersect_lines.push([intersect_points.size - 1, positives[0]])
+								intersect_lines.push([intersect_points.size - 1, positives[1]])
+								#intersect_triangles.push(@primitive_points[positives[0]], @primitive_points[positives[1]], intersect)
+								intersect_triangles.push([positives[0], positives[1], intersect_points.size - 1])
+								#puts "i_t: #{intersect_triangles.size}"
+								
+								#if (@draw_tessellated_faces == 1)
+									#face = @geodesic.entities.add_face @primitive_points[positives[0]], @primitive_points[positives[1]], intersect
+									#face.material = [0, 255, 255]
+									#face.back_material = [0, 255, 255]
+									#face.material = @face_material
+									#face.back_material = @face_material
+								#end
+							end
+							#@geodesic.entities.add_line [0, 0, 0], intersect
+							#@geodesic.entities.add_line positives[preferred_positive], negatives[0]	
+							@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
+						elsif (positives.size == 1)
+							#@geodesic.entities.add_face @primitive_points[p_num - order - 1], @primitive_points[p_num], @primitive_points[p_num - 1]
+							arr = [p_num - order - 1, p_num, p_num - 1]
+							
+							arr2 = sort_by_z(arr)
+							#arr2 = arr.sort_by{|a| a[2]}.reverse
+							#puts "arr2: #{arr2[0]} #{arr2[1]} #{arr2[2]}"
+							#@clipped_triangles.push [p_num - order - 1, p_num, p_num - 1]
+							@clipped_triangles.push [arr2[0], arr2[1], arr2[2]]
+							#we need the two points with the highest z axis values in the first 2 positions to find the other co-incident triangle
+							#ppp = find_third_point([arr[0], arr[1], arr[2]])
+							#puts "ppp: #{ppp}"
+							#@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
+						else #all negative
 							@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
 						end
 					end
@@ -1332,7 +1818,57 @@ module Geodesic
 				end
 				p_num += 1
 			end
-			
+
+			#Add any clipped points, struts and triangles back into the main lists
+			for l in 0 .. (intersect_lines.size - 1)
+				@strut_points.push [(intersect_lines[l][0] + @primitive_points.size), intersect_lines[l][1]]
+			end
+			pre_prim_size = @primitive_points.size
+
+			for p in 0 .. (intersect_points.size - 1)
+				@primitive_points.push intersect_points[p]
+				#puts "adding: #{@primitive_points.size}"
+			end
+
+			for t in 0 .. (intersect_triangles.size - 1)
+				@triangle_points.push ([intersect_triangles[t][0], intersect_triangles[t][1], (intersect_triangles[t][2] + pre_prim_size)])
+			end	
+
+		end
+		
+		def sort_by_z(arr)
+			arr2 = []
+			if (@primitive_points[arr[0]][2] >= @primitive_points[arr[1]][2] and @primitive_points[arr[0]][2] >= @primitive_points[arr[2]][2])
+				arr2[0] = arr[0]
+				if (@primitive_points[arr[1]][2] >= @primitive_points[arr[2]][2])
+					arr2[1] = arr[1] 
+					arr2[2] = arr[2]
+				else
+					arr2[1] = arr[2]
+					arr2[2] = arr[1]
+				end
+			end
+			if (@primitive_points[arr[1]][2] >= @primitive_points[arr[0]][2] and @primitive_points[arr[1]][2] >= @primitive_points[arr[2]][2])
+				arr2[0] = arr[1]
+				if (@primitive_points[arr[0]][2] >= @primitive_points[arr[2]][2])
+					arr2[1] = arr[0] 
+					arr2[2] = arr[2]
+				else
+					arr2[1] = arr[2]
+					arr2[2] = arr[0]
+				end						
+			end
+			if (@primitive_points[arr[2]][2] >= @primitive_points[arr[0]][2] and @primitive_points[arr[2]][2] >= @primitive_points[arr[1]][2])
+				arr2[0] = arr[2]
+				if (@primitive_points[arr[0]][2] >= @primitive_points[arr[1]][2])
+					arr2[1] = arr[0]
+					arr2[2] = arr[1]
+				else
+					arr2[1] = arr[1]
+					arr2[2] = arr[0]
+				end
+			end 
+			return arr2
 		end
 		
 		def add_cylinder_strut(p1, p2)
@@ -1381,7 +1917,7 @@ module Geodesic
 
 		end
 		
-		# Creates a strut orientated to face out from the origin
+		# Creates a strut orientated to face out from the center of the shape
 		# The ends are [distance] back from the points [p1, p2] to accommodate hubs
 		# The ends are also angled to allow closer mounting to the hubs
 		def add_wood_strut(p1, p2, distance)
@@ -1405,8 +1941,8 @@ module Geodesic
 			#calculate the normal
 			n1 = v2.cross v4
 			n2 = v3.cross v4
-			n1.length = @wood_strut_thickness / 2
-			n2.length = @wood_strut_thickness / 2
+			n1.length = @rect_strut_thickness / 2
+			n2.length = @rect_strut_thickness / 2
 
 			#create the outer facing points
 			pt3 = pt1 + n1
@@ -1415,8 +1951,8 @@ module Geodesic
 			pt6 = pt2 - n2
 			
 			#create the inner facing points
-			v2.length = @wood_strut_depth
-			v3.length = @wood_strut_depth
+			v2.length = @rect_strut_depth
+			v3.length = @rect_strut_depth
 			
 			pt7 = pt3 - v2
 			pt8 = pt4 - v2
@@ -1445,7 +1981,6 @@ module Geodesic
 
 		#Returns a point along the [p1/p2] line [dist] from [p1] in the direction of [p2]
 		def extend_line(p1, p2, dist)
-			#v = Geom::Vector3d.new (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
 			v = p1.vector_to(p2)
 
 			v.length = dist

@@ -32,7 +32,7 @@ fs_extension.description = ("Use the Geodesic Dome Creator " +
 	"to create full customized domes in a matter of minutes. Customize the size, " +
 	"frequency, base platonic solid and much more.")
 
-fs_extension.version = "0.2.3"
+fs_extension.version = "0.2.5"
 fs_extension.creator = "Paul Matthews"
 fs_extension.copyright = "2013-14, Paul Matthews"
 
