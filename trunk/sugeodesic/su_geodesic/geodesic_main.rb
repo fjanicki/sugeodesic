@@ -1,6 +1,6 @@
 #	Geodesic Dome Creator allows you to create fully customized Geodesic 
 #	Domes from within SketchUp
-#    Copyright (C) 2013-2014 Paul Matthews
+#    Copyright (C) 2013-2015 Paul Matthews
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -41,9 +41,9 @@ module Geodesic
 			@g_frequency = 3
 
 			@g_radius = 150
-			@g_radius_x = 300
+			@g_radius_x = 100
 			@g_radius_y = 100
-			@g_radius_z = 200
+			@g_radius_z = 100
 			@g_platonic_solid = 20
 			
 			@g_fraction_num = 1
@@ -51,48 +51,48 @@ module Geodesic
 			@g_fraction = @g_fraction_num.to_f / @g_fraction_den.to_f
 			@g_center = Geom::Point3d.new([0, 0, -(@g_radius_z) + 2 * @g_radius_z * @g_fraction])
 			
-			@draw_primitive_solid_faces = 1
-			@draw_primative_vertex_points = 1
+			@draw_primitive_solid_faces = false
+			@draw_primative_vertex_points = false
 			@primitive_face_material = [255, 255, 255]
 
-			@draw_tessellated_faces = 0
+			@draw_tessellated_faces = false
 			@face_material = Sketchup.active_model.materials.add "face_material"
 			
 			#Generic Hub configuration
-			@draw_hubs = 1
+			@draw_hubs = false
 			@hub_material = Sketchup.active_model.materials.add "hub_material"
 			
 			#Sphere hub configuration
 			@draw_sphere_hubs = 0
 			@sphere_hub_radius = 5
 			
-			#Metal hub configuration
-			@draw_cylinder_hubs = 1
-			@metal_hub_outer_radius = 1.50
-			@metal_hub_outer_thickness = 0.25
-			@metal_hub_depth_depth = 4
+			#Cylindrical hub configuration
+			@draw_cylinder_hubs = false
+			@cylindrical_hub_outer_radius = 1.50
+			@cylindrical_hub_outer_thickness = 0.25
+			@cylindrical_hub_depth_depth = 4
 
 			#Generic Strut configuration
-			@draw_struts = 1
+			@draw_struts = false
 			@strut_material = Sketchup.active_model.materials.add "strut_material"
-			@flatten_strut_base = 1
+			@flatten_strut_base = false
 			
 			#Rectangular strut configuration
-			@draw_wood_struts = 1
+			@draw_rect_struts = false
 			@rect_strut_dist_from_hub = 3
 			@rect_strut_thickness = 1.5
 			@rect_strut_depth = 3.5
 
 			#Cylinder strut configuration
-			@draw_cylinder_struts = 0
+			@draw_cylinder_struts = false
 			@cylinder_strut_extension = -4
 			@cylinder_strut_radius = 3
 			@cylinder_strut_radius = 2
 					
-			#Wood frame configuration
-			@draw_wood_frame = 1
+			#Rectangular frame configuration
+			@draw_rect_frame = false
 			@frame_separation = 12
-			@draw_base_frame = 0
+			@draw_base_frame = false
 			@base_frame_height = 36
 			
 			#Dome reference data is stored in these arrays
@@ -105,9 +105,9 @@ module Geodesic
 			@clipped_triangles = []	#array to store any clipped triangles
 			
 			#Dome shape data is stored in these arrays
-			@strut_hubs = []
+			@hubs = []
 			@all_edges = []
-			@frame_struts = []
+			@struts = []
 
 			#variables for statistics timer
 			@start_time = 0
@@ -123,12 +123,14 @@ module Geodesic
 			if (Sketchup.find_support_file("SKMtools_loader.rb","Plugins") != nil)
 				@SKMTools_installed = 1
 			end
+						
 		end
 		
 		
 		#HTML pop-up menu to configure and create the Geodesic Dome
-		def configure
+		def configure			
 			dialog = UI::WebDialog.new("Geodesic Dome Creator", true, "GU_GEODESIC", 800, 800, 200, 200, true)
+			
 			# Find and show our html file
 			html_path = Sketchup.find_support_file "su_geodesic/html/geodesic.html" ,"Plugins"
 			dialog.set_file(html_path)
@@ -137,178 +139,118 @@ module Geodesic
 			#Add handlers for all of the variable changes from the HTML side 
 
 			dialog.add_action_callback("DOMContentLoaded") { |dlg, msg|
+				#Once page is loaded send the configuration file
+				loadConfiguration(dialog)
+			
 				#Once page is loaded send extra configuration
 				script = 'dataFromSketchup("SKMTools_installed", ' + @SKMTools_installed.to_s() + ');'
 				dialog.execute_script(script) 
 			}
-			dialog.add_action_callback("platonic_solid") do |dlg, msg|
-				puts "platonic handler"
-				@g_platonic_solid = Integer(msg) 
-				puts 'about to send'
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("frequency") do |dlg, msg|
-				@g_frequency = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("fraction_num") do |dlg, msg|
-				@g_fraction_num = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("fraction_den") do |dlg, msg|
-				@g_fraction_den = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
 			
-			dialog.add_action_callback("radius_x") do |dlg, msg|
-				@g_radius_x = Float(msg) 
-				dialog.execute_script('send_setting();') 
-			end		
-			dialog.add_action_callback("radius_y") do |dlg, msg|
-				@g_radius_y = Float(msg) 
-				dialog.execute_script('send_setting();') 
-			end	
-			dialog.add_action_callback("radius_z") do |dlg, msg|
-				@g_radius_z = Float(msg) 
-				dialog.execute_script('send_setting();') 
-			end	
+			
+			dialog.add_action_callback( "create_geodesic" ) do |dlg, msg|
+				# Integer variables
+				@g_frequency = Integer(dialog.get_element_value("g_frequency"))
+				@g_fraction_num = Integer(dialog.get_element_value("g_fraction_num"))
+				@g_fraction_den = Integer(dialog.get_element_value("g_fraction_den"))
+			
+				# Boolean variables		
+				@draw_primative_vertex_points = dialog.execute_script("getcheckboxvalue('draw_primative_vertex_points')")
+				#@draw_base_frame = dialog.execute_script("getcheckboxvalue('draw_base_frame')")
+				#@draw_rect_frame = dialog.execute_script("getcheckboxvalue('draw_rect_frame')")
+				#@flatten_strut_base = dialog.execute_script("getcheckboxvalue('flatten_strut_base')")
+				@draw_faces = dialog.execute_script("getcheckboxvalue('draw_faces')")
+				@draw_struts = dialog.execute_script("getcheckboxvalue('draw_struts')")
+				@draw_hubs = dialog.execute_script("getcheckboxvalue('draw_hubs')")
+				
+					
+				# Floating Point variables
+				@g_radius_x = Float(dialog.get_element_value("g_radius_x"))
+				@g_radius_y = Float(dialog.get_element_value("g_radius_y"))
+				@g_radius_z = Float(dialog.get_element_value("g_radius_z"))
+				@rect_strut_depth = Float(dialog.get_element_value("rect_strut_depth"))
+				@rect_strut_thickness = Float(dialog.get_element_value("rect_strut_thickness"))
+				@sphere_radius = Float(dialog.get_element_value("sphere_radius"))
+				@base_frame_height = Float(dialog.get_element_value("base_frame_height"))
+				@cylinder_strut_radius = Float(dialog.get_element_value("cylinder_strut_radius"))
+				@cylinder_strut_extension = Float(dialog.get_element_value("cylinder_strut_extension"))
+				@cylinder_strut_offset = Float(dialog.get_element_value("cylinder_strut_offset"))
 
-			dialog.add_action_callback("thickness") do |dlg, msg|
-				@rect_strut_thickness = Float(msg) 
-				dialog.execute_script('send_setting();') 
-			end		
-			dialog.add_action_callback("depth") do |dlg, msg|
-				@rect_strut_depth = Float(msg) 
-				dialog.execute_script('send_setting();') 
-			end		
-			dialog.add_action_callback("draw_faces") do |dlg, msg|
-				@draw_tessellated_faces = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("face_material") { |dlg, msg|
-				filepath = msg
-				filepath = msg.gsub('\\','/')
-				if (filepath == "")
+				#setFloat(dialog, @, "")
+												
+				#puts "strut_material: " + @strut_material
+				#puts "hub_material: " + @hub_material
+				#setMaterial(dialog, @strut_material, "strut_material")			
+				#setMaterial(dialog, @hub_material, "hub_material")
+				@strut_material = [255, 255, 0]
+				@hub_material = [192, 192, 192]
+				#puts "strut_material: " + @strut_material
+				#puts "hub_material: " + @hub_material
+				
+				# Specific variables
+				val = dialog.get_element_value("face_material").gsub('\\','/')
+				if (val == "")
 					@face_material = [255, 255, 255]
 				else
-					if File.exists?(filepath)
-						@face_material = SKM.import(filepath)
+					if File.exists?(val)
+						@face_material = SKM.import(val)
 					end
 				end
-				dialog.execute_script('send_setting();') 
-			}
-			dialog.add_action_callback("face_opacity") do |dlg, msg|
-				puts 'in face_opacity'
-				if (@face_material.class != Array)
-					puts 'in face_opacity if'
-					@face_material.alpha = Float(msg) / 100
-				end
-				puts 'in face_opacity done if'
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("strut_material") { |dlg, msg|
-				filepath = msg
-				filepath = msg.gsub('\\','/')
-				if (filepath == "")
-					@strut_material = [255, 215, 0]	
-				else
-					if File.exists?(filepath)
-						puts 'Do strut'
-						@strut_material = SKM.import(filepath)
-						puts 'bugger...'
-					end
-				end
-				dialog.execute_script('send_setting();') 
-			}
 
-			dialog.add_action_callback("hub_material") { |dlg, msg|
-				filepath = msg
-				filepath = msg.gsub('\\','/')
-				if (filepath == "")
-					@hub_material = [255, 255, 255]				
-				else
-					if File.exists?(filepath)	#Only assign alpha if a material was assigned (not a default color)
-						@hub_material = SKM.import(filepath)
-					end
+				#Platonic Solid
+				v = Integer(dialog.get_element_value("ps4"))
+				if (v == 1) 
+					@g_platonic_solid = 4
+				end				
+				v = Integer(dialog.get_element_value("ps8"))
+				if (v == 1) 
+					@g_platonic_solid = 8
 				end
-				dialog.execute_script('send_setting();') 
-			}
+				v = Integer(dialog.get_element_value("ps20"))
+				if (v == 1) 
+					@g_platonic_solid = 20
+				end
+				
+				#Strut Type
+				v = Integer(dialog.get_element_value("st_rect"))
+				if (v == 1) 
+					@draw_rect_struts = true					
+					@draw_cylinder_struts = false	
+				end				
+				v = Integer(dialog.get_element_value("st_cyl"))
+				if (v == 1) 
+					@draw_rect_struts = false					
+					@draw_cylinder_struts = true
+				end			
 			
-			dialog.add_action_callback("draw_struts") do |dlg, msg|
-				@draw_struts = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("draw_hubs") do |dlg, msg|
-				@draw_hubs = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("draw_cylinder_hubs") do |dlg, msg|
-				@draw_cylinder_hubs = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("draw_wood_frame") do |dlg, msg|
-				@draw_wood_frame = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("draw_cpoints") do |dlg, msg|
-				@draw_primative_vertex_points = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("sphere_radius") do |dlg, msg|
-				@sphere_hub_radius = Float(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("strut_type") do |dlg, msg|
-				if (msg == "rectangular")
-					@draw_wood_struts = 1					
-					@draw_cylinder_struts = 0
-				end
-				if (msg == "cylindrical")
-					@draw_wood_struts = 0					
-					@draw_cylinder_struts = 1
-				end
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("hub_type") do |dlg, msg|
-				if (msg == "Spherical")
-					@draw_sphere_hubs = 1
-					@draw_cylinder_hubs = 0
-				end
-				if (msg == "Cylindrical")
-					@draw_sphere_hubs = 0
-					@draw_cylinder_hubs = 1
-				end
-				if (msg == "None")
-					@draw_sphere_hubs = 0
-					@draw_cylinder_hubs = 0
-				end
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("flatten_strut_base") do |dlg, msg|
-				@flatten_strut_base = Integer(msg) 
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("draw_base_frame") do |dlg, msg|
-				@draw_base_frame = Integer(msg)
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("base_frame_height") do |dlg, msg|
-				@base_frame_height = Float(msg)
-				dialog.execute_script('send_setting();') 
-			end
-			dialog.add_action_callback("strut_radius") do |dlg, msg|
-				@cylinder_strut_radius = Float(msg)
-				dialog.execute_script('send_setting();') 
-			end	
-			dialog.add_action_callback("strut_extension") do |dlg, msg|
-				@cylinder_strut_extension = Float(msg)
-				dialog.execute_script('send_setting();') 
-			end	
-			dialog.add_action_callback("strut_offset") do |dlg, msg|
-				@cylinder_strut_offset = Float(msg)
-				dialog.execute_script('send_setting();') 
-			end				
-			dialog.add_action_callback( "create_geodesic" ) do |dlg, msg|
+				#Hub Type
+				v = Integer(dialog.get_element_value("ht_sph"))
+				if (v == 1) 
+					@draw_sphere_hubs = true
+					@draw_cylinder_hubs = false
+				end				
+				v = Integer(dialog.get_element_value("ht_cyl"))
+				if (v == 1) 
+					@draw_sphere_hubs = false
+					@draw_cylinder_hubs = true
+				end	
+				v = Integer(dialog.get_element_value("ht_non"))
+				if (v == 1) 
+					@draw_sphere_hubs = false
+					@draw_cylinder_hubs = false
+				end	
+				
+			
+				#dialog.add_action_callback("face_opacity") do |dlg, msg|
+				#	puts 'in face_opacity'
+				#	if (@face_material.class != Array)
+				#		puts 'in face_opacity if'
+				#		@face_material.alpha = Float(msg) / 100
+				#	end
+				#	puts 'in face_opacity done if'
+				#	dialog.execute_script('send_setting();') 
+				#end
+			
 				#Let the user know we've started
 				#script = 'messageFromSketchup("Processing has started.. Give me a minute or two\n (time varies depending on settings).");'
 				#t1 = Thread.new(dialog.execute_script(script))
@@ -317,30 +259,147 @@ module Geodesic
 				html_path = Sketchup.find_support_file "su_geodesic/html/processing.html" ,"Plugins"
 				processing.set_file(html_path)
 				processing.show			
-				script = "from_ruby('Processing stuff');"
-				processing.execute_script(script)
-				
-				#@do_draw = 1
-				#puts "Create Geodesic:" + msg
-				#puts "Platonic Solid: #{@g_platonic_solid}"
-				#puts "Frequency: #{@g_frequency.to_s}"
-				
-				#The geodesic is configured, now draw it
-				#t2 = Thread.new{draw()}
+				#script = "from_ruby('Processing stuff');"
+				#processing.execute_script(script)			
 				dialog.close	
 				draw()
-				#Wait until complete before printing statistics
-				#t2.join
+				
+				#Save the configuration for the next load
+				saveConfiguration()
 				
 				#Print statistics to the Ruby Console
-				#t3 = Thread.new{statistics()}
 				statistics()
 				
 				#Close the dialogs
 				processing.close			
 			end
 		end
+
+		def loadConfiguration(dialog)
+			d = "su_geodesic"
+			f = "configuration.ini"
 			
+			
+			#Check the configuration directory exists
+			if (File.directory?(d) && File.file?(d + '/' + f))
+				puts 'found the configuration file'
+				
+				#load the configuration file
+				line_num = 0
+				text = File.open(d + '/' + f).read
+				text.gsub!(/\r\n?/, "\n")
+
+				#process each line and send the data to the js side
+				text.each_line do |line|
+					line = line.strip
+					var, val = line.split(/:/)
+				  
+					c = "setVar('" + var + "', '" + val + "')"
+					dialog.execute_script(c)
+					
+				end
+				
+			end		
+		end
+		
+		def saveConfiguration()			
+			d = "su_geodesic"
+			f = "configuration.ini"
+
+			if (!File.directory?(d))
+				puts 'dir does not exist'
+				system 'mkdir', '-p', d
+			end
+			File.open(d + '/' + f, "w+") { |file| 
+				
+				# Integer variables
+				file.puts("g_frequency:" + @g_frequency.to_s)
+				file.puts("g_fraction_num:" + @g_fraction_num.to_s)
+				file.puts("g_fraction_den:" + @g_fraction_den.to_s)	
+			
+				# Boolean variables		
+				file.puts("draw_primative_vertex_points:" + @draw_primative_vertex_points.to_s)
+				#file.puts("draw_base_frame:" + @draw_base_frame.to_s)
+				#file.puts("draw_rect_frame:" + @draw_rect_frame.to_s)
+				#file.puts("flatten_strut_base:" + @flatten_strut_base.to_s)
+				file.puts("draw_faces:" + @draw_faces.to_s)
+				file.puts("draw_struts:" + @draw_struts.to_s)
+				file.puts("draw_hubs:" + @draw_hubs.to_s)
+				
+				# Floating Point variables
+				file.puts("g_radius_x:" + @g_radius_x.to_s)
+				file.puts("g_radius_y:" + @g_radius_y.to_s)
+				file.puts("g_radius_z:" + @g_radius_z.to_s)
+				file.puts("rect_strut_depth:" + @rect_strut_depth.to_s)
+				file.puts("rect_strut_thickness:" + @rect_strut_thickness.to_s)
+				file.puts("sphere_radius:" + @sphere_radius.to_s)
+				file.puts("base_frame_height:" + @base_frame_height.to_s)
+				file.puts("cylinder_strut_radius:" + @cylinder_strut_radius.to_s)
+				file.puts("cylinder_strut_extension:" + @cylinder_strut_extension.to_s)
+				file.puts("cylinder_strut_offset:" + @cylinder_strut_offset.to_s)
+				
+				# Specific variables
+				if (@g_platonic_solid == 4) 
+					file.puts("ps4:1")
+					file.puts("ps8:0")
+					file.puts("ps20:0")
+				end				
+				if (@g_platonic_solid == 8) 
+					file.puts("ps4:0")
+					file.puts("ps8:1")
+					file.puts("ps20:0")
+				end
+				if (@g_platonic_solid == 20) 
+					file.puts("ps4:0")
+					file.puts("ps8:0")
+					file.puts("ps20:1")
+				end
+				
+				if (@draw_rect_struts == true && @draw_cylinder_struts == false) 
+					file.puts("st_rect:1")
+					file.puts("st_cyl:0")
+				end				
+				if (@draw_rect_struts == false && @draw_cylinder_struts == true) 
+					file.puts("st_rect:0")
+					file.puts("st_cyl:1")
+				end	
+				
+				if (@draw_sphere_hubs = true && @draw_cylinder_hubs = false) 
+					file.puts("ht_sph:1")
+					file.puts("ht_cyl:0")
+					file.puts("ht_non:0")
+				end				
+
+				if (@draw_sphere_hubs = false && @draw_cylinder_hubs = true) 
+					file.puts("ht_sph:0")
+					file.puts("ht_cyl:1")
+					file.puts("ht_non:0")
+				end	
+
+				if (@draw_sphere_hubs = false && @draw_cylinder_hubs = false) 
+					file.puts("ht_sph:0")
+					file.puts("ht_cyl:0")
+					file.puts("ht_non:1")
+				end	
+				
+			}
+		end
+		
+		def setMaterial(dialog, var, val)
+			filepath = dialog.get_element_value(val).gsub('\\','/')
+			puts "filepath: " + filepath
+			var = [255, 255, 255]				
+			
+			#if (filepath == "")
+			#	var = [255, 255, 255]				
+			#else
+			#	if File.exists?(filepath)	#Only assign alpha if a material was assigned (not a default color)
+			#		var = SKM.import(filepath)
+			#	end
+			#end
+		
+		end
+		
 	#Trying to work out how to modify one of the class instance variables...
 	#	def add_handler(dialog, handle, type, mapping)
 	#		if (type == "Int")
@@ -373,11 +432,11 @@ module Geodesic
 				create_icosahedron()
 			end
 			
-			if (@flatten_strut_base == 1)
+			if (@flatten_strut_base == true)
 				flatten_base()
 			end
 			
-			if (@draw_base_frame == 1)
+			if (@draw_base_frame == true)
 				create_base_frame()
 			end 
 			
@@ -388,12 +447,12 @@ module Geodesic
 			add_struts()
 
 			#Add vertex construction points
-			if (@draw_primative_vertex_points == 1)
+			if (@draw_primative_vertex_points == true)
 				add_vertex_points()
 			end
 			
-			if(@draw_wood_frame == 1)
-				add_wood_frame()
+			if(@draw_rect_frame == true)
+				add_rectangular_frame()
 			end
 			
 			@end_time = Time.now		#start timer for statistics measurements
@@ -401,9 +460,9 @@ module Geodesic
 		end
 		
 		def statistics()
-			num_hubs = @strut_hubs.size
+			num_hubs = @hubs.size
 			num_struts = @all_edges.size
-			num_frame_struts = @frame_struts.size
+			num_frame_struts = @struts.size
 			
 			print("Statistics\n^^^^^^^^^^\n\n")
 			
@@ -475,7 +534,7 @@ module Geodesic
 				k = c[d + 1]
 				l = c[d + 2]
 				# draw the triangles of the tetrahedron
-				if(@draw_primitive_solid_faces == 1)
+				if(@draw_primitive_solid_faces == true)
 					if (all_pos_z([tetrahedron[j], tetrahedron[k], tetrahedron[l]]) == 0)
 						#tetra_faces.push(@geodesic.entities.add_face(tetrahedron[j], tetrahedron[k], tetrahedron[l]))
 					end
@@ -515,7 +574,7 @@ module Geodesic
 				k = c[d + 1]
 				l = c[d + 2]
 				# draw the triangles of the octahedron
-				if(@draw_primitive_solid_faces == 1)
+				if(@draw_primitive_solid_faces == true)
 					if (all_pos_z([octahedron[j], octahedron[k], octahedron[l]]) == 0)
 						#octa_faces.push(@geodesic.entities.add_face(octahedron[j], octahedron[k], octahedron[l])) 
 					end
@@ -664,8 +723,8 @@ module Geodesic
 			# Create a series of "points", each a 3-item array containing x, y, and z.
 			p = Geom::Point3d.new([0,0,0])	# rotate from the origin
 			v = Geom::Vector3d.new([0,1,0]) # axis of rotation
-			#angle = 31.7
-			angle = 0
+			angle = 31.7
+			#angle = 0
 			r = Math::PI / 180 * angle		# rotate so hemisphere is level
 			t1 = Geom::Transformation.rotation(p, v, r)
 			t2 = Geom::Transformation.translation(Geom::Vector3d.new([0,0,@g_center[2]]))
@@ -732,7 +791,7 @@ module Geodesic
 				k = c[d + 1]
 				l = c[d + 2]
 				# draw the triangles of the icosahedron
-				#if(@draw_primitive_solid_faces == 1)
+				#if(@draw_primitive_solid_faces == true)
 					#if (all_pos_z([icosahedron[j], icosahedron[k], icosahedron[l]]) == 0)
 						#icosa_faces.push(@geodesic.entities.add_face(icosahedron[j], icosahedron[k], icosahedron[l])) 
 					#end
@@ -743,7 +802,7 @@ module Geodesic
 			end	
 
 			#Process and triangles that were clipped
-			process_clipped_triangles()
+			#process_clipped_triangles()
 			
 			end
 		
@@ -1066,13 +1125,13 @@ module Geodesic
 		end
 		
 		def add_hubs()
-			if (@draw_hubs == 1)
-				if (@draw_sphere_hubs == 1)
+			if (@draw_hubs == true)
+				if (@draw_sphere_hubs == true)
 					add_sphere_hubs()
 				end
 				
-				if (@draw_cylinder_hubs == 1)
-					add_metal_hubs()
+				if (@draw_cylinder_hubs == true)
+					add_cylindrical_hubs()
 				end
 			end
 		end
@@ -1129,7 +1188,7 @@ module Geodesic
 						new_hub = @geodesic.entities.add_instance hub_def, trans
 
 						#Add hub to the global hub list
-						@strut_hubs.push(new_hub)
+						@hubs.push(new_hub)
 					end
 				end
 			}
@@ -1157,20 +1216,20 @@ module Geodesic
 		
 
 		
-		def add_metal_hubs()
+		def add_cylindrical_hubs()
 			u_hubs = []
 
 			#Calculate the inner radius
-			inner_radius = @metal_hub_outer_radius - @metal_hub_outer_thickness
+			inner_radius = @cylindrical_hub_outer_radius - @cylindrical_hub_outer_thickness
 
 			#TODO: having trouble getting the rotation right on the component version
 			#hub = @geodesic.entities.add_group
-			#outer_circle = hub.entities.add_circle([0, 0, 0], Geom::Vector3d.new([0, 0, 1]), @metal_hub_outer_radius)				
+			#outer_circle = hub.entities.add_circle([0, 0, 0], Geom::Vector3d.new([0, 0, 1]), @cylindrical_hub_outer_radius)				
 			#inner_circle = hub.entities.add_circle([0, 0, 0], Geom::Vector3d.new([0, 0, 1]), inner_radius)
 			#outer_end_face = hub.entities.add_face outer_circle
 			#inner_end_face = hub.entities.add_face inner_circle
 			#hub.entities.erase_entities inner_end_face		#remove the inner face we just added (need to do this to create cylinder end
-			#outer_end_face.pushpull @metal_hub_depth_depth, false
+			#outer_end_face.pushpull @cylindrical_hub_depth_depth, false
 			#hub_comp = hub.to_component
 			
 			#get the definition of the hub so we can make more
@@ -1186,12 +1245,12 @@ module Geodesic
 						#Create some copies of our hub component
 
 						hub = @geodesic.entities.add_group
-						outer_circle = hub.entities.add_circle(i, Geom::Vector3d.new(@g_center.vector_to(i)), @metal_hub_outer_radius)				
+						outer_circle = hub.entities.add_circle(i, Geom::Vector3d.new(@g_center.vector_to(i)), @cylindrical_hub_outer_radius)				
 						inner_circle = hub.entities.add_circle(i, Geom::Vector3d.new(@g_center.vector_to(i)), inner_radius)
 						outer_end_face = hub.entities.add_face outer_circle
 						inner_end_face = hub.entities.add_face inner_circle
 						hub.entities.erase_entities inner_end_face		#remove the inner face we just added (need to do this to create cylinder end
-						outer_end_face.pushpull -(@metal_hub_depth_depth), false
+						outer_end_face.pushpull -(@cylindrical_hub_depth_depth), false
 						#cycle through the sphere faces and assign material to all
 						faces = []
 						hub.entities.each{|f|
@@ -1247,10 +1306,10 @@ module Geodesic
 						#new_hub.transform!(t)
 						
 						#Add hub to the global hub list
-						#@strut_hubs.push(new_hub)
+						#@hubs.push(new_hub)
 
 						#Add hub to the global hub list
-						@strut_hubs.push(hub)
+						@hubs.push(hub)
 					end
 				end
 			}	
@@ -1281,26 +1340,26 @@ module Geodesic
 					if (isLineUnique(@u_struts, [@primitive_points[c[0]], @primitive_points[c[1]]]) == -1)
 						@u_struts.push([@primitive_points[c[0]], @primitive_points[c[1]]])
 						
-						if (@draw_struts == 1)
-							if (@draw_wood_struts == 1)
-								@all_edges.push(add_wood_strut(@primitive_points[c[0]], @primitive_points[c[1]], @rect_strut_dist_from_hub))
+						if (@draw_struts == true)
+							if (@draw_rect_struts == true)
+								@all_edges.push(add_rectangular_strut(@primitive_points[c[0]], @primitive_points[c[1]], @rect_strut_dist_from_hub))
 							end
 							
-							if (@draw_cylinder_struts == 1)
+							if (@draw_cylinder_struts == true)
 								@all_edges.push(add_cylinder_strut(@primitive_points[c[0]], @primitive_points[c[1]]))				
 							end
 						end
 						#Add the hub plates
 						#This currently relies on being here so that it gets the correct faces passed to it.
-						if (@draw_cylinder_hubs == 1)
-							#add_hub_plates(strut_faces, @strut_hubs[c[0]], @strut_hubs[c[1]], strut_dist_from_hub)
+						if (@draw_cylinder_hubs == true)
+							#add_hub_plates(strut_faces, @hubs[c[0]], @hubs[c[1]], strut_dist_from_hub)
 						end
 					end
 				end
 			}	
 		end
 				
-		def add_wood_frame()
+		def add_rectangular_frame()
 		
 			@triangle_points.each { |pts|
 				orient = orientate(pts)
@@ -1390,8 +1449,8 @@ module Geodesic
 					s1 = create_solid([i1_1, i1_1e, i1_2, i1_2e, i3_1, i3_1e, i3_2, i3_2e])	
 					s2 = create_solid([i2_1, i2_1e, i2_2, i2_2e, i4_1, i4_1e, i4_2, i4_2e])	
 					
-					@frame_struts.push(s1)				
-					@frame_struts.push(s2)
+					@struts.push(s1)				
+					@struts.push(s2)
 					
 					#update variables for next iteration
 					dist_left -= seperation
@@ -1664,7 +1723,7 @@ module Geodesic
 						negatives.push p_num
 					end
 					if (positives.size == 3)
-						if (@draw_tessellated_faces == 1)
+						if (@draw_tessellated_faces == true)
 							#add 'upside down' faces
 							#    *****
 							#     * *
@@ -1690,14 +1749,15 @@ module Geodesic
 						#@geodesic.entities.add_line positives[preferred_positive], negatives[0]	
 						#puts "new face: #{positives[0]}, #{positives[1]}, #{intersect}"
 						if (intersect != @primitive_points[positives[0]] and intersect != @primitive_points[positives[1]])
-							intersect_points.push(Geom::Point3d.new(intersect))
-							intersect_lines.push([intersect_points.size - 1, positives[0]])
-							intersect_lines.push([intersect_points.size - 1, positives[1]])
-							intersect_triangles.push([positives[0], positives[1], intersect_points.size - 1])
+#							intersect_points.push(Geom::Point3d.new(intersect))
+#							intersect_lines.push([intersect_points.size - 1, positives[0]])
+#							intersect_lines.push([intersect_points.size - 1, positives[1]])
+#							intersect_triangles.push([positives[0], positives[1], intersect_points.size - 1])
 							#puts "i_t: #{intersect_triangles.size}"
-								
-							#if (@draw_tessellated_faces == 1)
-								#face = @geodesic.entities.add_face @primitive_points[positives[0]], @primitive_points[positives[1]], intersect
+
+#							face = @geodesic.entities.add_face @primitive_points[positives[0]], @primitive_points[positives[1]], @primitive_points[negatives[0]]
+							#if (@draw_tessellated_faces == true)
+#								face = @geodesic.entities.add_face @primitive_points[positives[0]], @primitive_points[positives[1]], intersect
 								#face.material = [0, 255, 255]
 								#face.back_material = [0, 255, 255]
 								#face.material = @face_material
@@ -1714,13 +1774,13 @@ module Geodesic
 						#arr2 = arr.sort_by{|a| a[2]}.reverse
 						#@clipped_triangles.push [p_num - order, p_num - order - 1, p_num]
 						#puts "arr2: #{@primitive_points[arr2[0]]} #{@primitive_points[arr2[1]]} #{@primitive_points[arr2[2]]}"
-						@clipped_triangles.push [arr2[0], arr2[1], arr2[2]]
+#						@clipped_triangles.push [arr2[0], arr2[1], arr2[2]]
 						#we need the two points with the highest z axis values in the first 2 positions to find the other co-incident triangle
 						#ppp = find_third_point([arr[0], arr[1], arr[2]])
 						#puts "ppp: #{ppp}"
 						#@triangle_points.push([p_num - order, p_num - order - 1, p_num])
 					else # all negative
-						@triangle_points.push([p_num - order, p_num - order - 1, p_num])
+#						@triangle_points.push([p_num - order, p_num - order - 1, p_num])
 					end
 
 					#add faces (if they are above z-axis) so that we draw a dome instead of an egg
@@ -1747,7 +1807,7 @@ module Geodesic
 							negatives.push (p_num - 1)
 						end
 						if (positives.size == 3)
-							if (@draw_tessellated_faces == 1)
+							if (@draw_tessellated_faces == true)
 								#add 'right side up' faces
 								#      *
 								#     * *
@@ -1770,15 +1830,15 @@ module Geodesic
 							#puts "2 p0: #{positives[0]} p1: #{ negatives[0]}"
 							intersect = intersect_line_plane(@primitive_points[positives[preferred_positive]], @primitive_points[negatives[0]], p, v, 0.000001)
 							if (intersect != @primitive_points[positives[0]] and intersect != @primitive_points[positives[1]])
-								intersect_points.push(intersect)
-								intersect_lines.push([intersect_points.size - 1, positives[0]])
-								intersect_lines.push([intersect_points.size - 1, positives[1]])
+#								intersect_points.push(intersect)
+#								intersect_lines.push([intersect_points.size - 1, positives[0]])
+#								intersect_lines.push([intersect_points.size - 1, positives[1]])
 								#intersect_triangles.push(@primitive_points[positives[0]], @primitive_points[positives[1]], intersect)
-								intersect_triangles.push([positives[0], positives[1], intersect_points.size - 1])
+#								intersect_triangles.push([positives[0], positives[1], intersect_points.size - 1])
 								#puts "i_t: #{intersect_triangles.size}"
-								
-								#if (@draw_tessellated_faces == 1)
-									#face = @geodesic.entities.add_face @primitive_points[positives[0]], @primitive_points[positives[1]], intersect
+#								face = @geodesic.entities.add_face @primitive_points[positives[0]], @primitive_points[positives[1]], @primitive_points[negatives[0]]
+								#if (@draw_tessellated_faces == true)
+#									face = @geodesic.entities.add_face @primitive_points[positives[0]], @primitive_points[positives[1]], intersect
 									#face.material = [0, 255, 255]
 									#face.back_material = [0, 255, 255]
 									#face.material = @face_material
@@ -1787,7 +1847,7 @@ module Geodesic
 							end
 							#@geodesic.entities.add_line [0, 0, 0], intersect
 							#@geodesic.entities.add_line positives[preferred_positive], negatives[0]	
-							@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
+#							@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
 						elsif (positives.size == 1)
 							#@geodesic.entities.add_face @primitive_points[p_num - order - 1], @primitive_points[p_num], @primitive_points[p_num - 1]
 							arr = [p_num - order - 1, p_num, p_num - 1]
@@ -1796,13 +1856,13 @@ module Geodesic
 							#arr2 = arr.sort_by{|a| a[2]}.reverse
 							#puts "arr2: #{arr2[0]} #{arr2[1]} #{arr2[2]}"
 							#@clipped_triangles.push [p_num - order - 1, p_num, p_num - 1]
-							@clipped_triangles.push [arr2[0], arr2[1], arr2[2]]
+#							@clipped_triangles.push [arr2[0], arr2[1], arr2[2]]
 							#we need the two points with the highest z axis values in the first 2 positions to find the other co-incident triangle
 							#ppp = find_third_point([arr[0], arr[1], arr[2]])
 							#puts "ppp: #{ppp}"
 							#@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
 						else #all negative
-							@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
+#							@triangle_points.push([p_num - order - 1, p_num, p_num - 1])
 						end
 					end
 				end
@@ -1920,7 +1980,7 @@ module Geodesic
 		# Creates a strut orientated to face out from the center of the shape
 		# The ends are [distance] back from the points [p1, p2] to accommodate hubs
 		# The ends are also angled to allow closer mounting to the hubs
-		def add_wood_strut(p1, p2, distance)
+		def add_rectangular_strut(p1, p2, distance)
 
 			#create a group for our strut
 			strut = @geodesic.entities.add_group
@@ -2067,16 +2127,16 @@ module Geodesic
 		face1 = hub_plate.entities.add_face(face1_coords[0], face1_coords[1], face1_coords[2], face1_coords[3])
 
 		#Create a normal to the inner face
-		normal  = face1.normal
-		normal.length = plate_thickness
-		vertices = strut_faces[0].vertices
-		tmp_grp = entities.add_group
-		tmp_face2 = tmp_grp.entities.add_face(vertices[0].position - normal, vertices[1].position - normal, vertices[2].position - normal, vertices[3].position - normal)
-		face2_coords = calc_hub_plate_face(tmp_face2, 0, hub1, extend_dist)
-		hub_plate.entities.add_face(face2_coords[0], face2_coords[1], face2_coords[2], face2_coords[3])
+		#normal  = face1.normal
+		#normal.length = plate_thickness
+		#vertices = strut_faces[0].vertices
+		#tmp_grp = entities.add_group
+		#tmp_face2 = tmp_grp.entities.add_face(vertices[0].position - normal, vertices[1].position - normal, vertices[2].position - normal, vertices[3].position - normal)
+		#face2_coords = calc_hub_plate_face(tmp_face2, 0, hub1, extend_dist)
+		#hub_plate.entities.add_face(face2_coords[0], face2_coords[1], face2_coords[2], face2_coords[3])
 		
 		#empty the temporary group
-		tmp_grp.entities.clear!
+		#tmp_grp.entities.clear!
 
 	#	hub_plate.entities.add_face (f3v[0].position, f3v[1].position, f3v[2].position, f3v[3].position)
 	#	hub_plate.entities.add_face (f4v[0].position, f4v[1].position, f4v[2].position, f4v[3].position)

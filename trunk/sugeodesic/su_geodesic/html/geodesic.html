@@ -23,7 +23,7 @@
 <body>
 	<div class="container">
 		<img src="../img/logo.png">
-		<h3>Version 0.2.5</h3>
+		<h3>Version 0.2.5b</h3>
 		<h2>Click on Each section to configure your Geodesic and then click Generate</h2>
 		<form name="configure_geodesic">
 		<div class="accordion" id="my-accordion" >
@@ -35,14 +35,14 @@
 				</div>
 				<div id="collapseOne" class="accordion-body collapse in">
 					<div class="accordion-inner">
-						<div class="well">
+						<div class="well">	
 							<p>Select Base Platonic Solid to make Geodesic from</p>
 							<ul>
 							<table>
 								<tr>
-									<td><input type="radio" name="platonic_solid" value="4" >Tetrahedron</td>
-									<td><input type="radio" name="platonic_solid" value="8" >Octahedron</td>
-									<td><input type="radio" name="platonic_solid" value="20" checked="checked">Icosahedron</td>
+									<td><input type="radio" id="ps4" name="g_platonic_solid" >Tetrahedron</td>
+									<td><input type="radio" id="ps8" name="g_platonic_solid" >Octahedron</td>
+									<td><input type="radio" id="ps20" name="g_platonic_solid" checked="checked">Icosahedron</td>
 								</tr>
 								<tr>
 									<td><img src="../img/Tetrahedron.png"></td>
@@ -62,22 +62,22 @@
 				</div>
 				<div id="collapseTwo" class="accordion-body collapse">
 					<div class="accordion-inner">
-						<div class="well">
+							<div class="well">
 							<p>Select Frequency of Geodesic</p>
 							Enter a number between 1 and 10 (the higher the number the smoother the dome as it uses more struts)
-							<ul><input type="text" id="frequency" class="text-small" value="5"></ul>
+							<ul><input type="text" id="g_frequency" class="text-small" value="5"></ul>
 							<p>Enter amount of Dome to create (i.e. 1/2 or 5/8)</p>		
 							<ul>
-								<input type="text" id="fraction_num" class="text-small" value="5"> / <input type="text" id="fraction_den" class="text-small" value="8">
+								<input type="text" id="g_fraction_num" class="text-small" value="5"> / <input type="text" id="g_fraction_den" class="text-small" value="8">
 							</ul>
 							<p>Enter radius of the Dome to create </p>
 							<ul>
-								X:<input type="text" id="radius_x" class="text-med" value="200">
-								Y:<input type="text" id="radius_y" class="text-med" value="300">
-								Z:<input type="text" id="radius_z" class="text-med" value="200">
+								X:<input type="text" id="g_radius_x" class="text-med" value="200">
+								Y:<input type="text" id="g_radius_y" class="text-med" value="300">
+								Z:<input type="text" id="g_radius_z" class="text-med" value="200">
 							</ul>
 							
-							<p><input type="checkbox" id="draw_cpoints"> Draw Geodesic Vertices Points</p>
+							<p><input type="checkbox" id="draw_primative_vertex_points"> Draw Geodesic Vertices Points</p>
 							<p><input type="checkbox" id="flatten_strut_base" disabled="disabled"> Flatten frame base</p>
 							<p><input type="checkbox" id="draw_base_frame" disabled="disabled"> Draw Base frame</p> 
 							<table cellpadding=10>
@@ -116,27 +116,29 @@
 							<input type="checkbox" id="draw_struts" checked> Draw Struts
 							<p>Select strut type</p>
 								<ul><table cellpadding=10>
-									<tr><td valign="middle">Select Strut Material</td><td valign="bottom"><input type="file" disabled id="strut_material" accept="skp"></td><td><a href="#" data-toggle="popover" id = "SKMTools2" ></a></td></tr>
 								</table></ul>
+									<tr><td valign="middle">Select Strut Material</td><td valign="bottom"><input type="file" disabled id="strut_material" accept="skp"></td><td><a href="#" data-toggle="popover" id = "SKMTools2" ></a></td></tr>
 
-								<p><input type="radio" name="strut_type" value="rectangular" checked="checked">Rectangular</p>
+								<p><input type="radio" id="st_rect" name="strut_type" value="rectangular" checked="checked">Rectangular</p>
 								<p>Enter dimensions of strut </p>
 								<ul>
-									<p><input type="text" id="thickness" value="1.5" class="text-med"> x <input type="text" id="depth" value="3.5" class="text-med"></p>
-									<p><input type="checkbox" id="draw_wood_frame" > Draw Inner Frame</p>
+									<p><input type="text" id="rect_strut_thickness" value="1.5" class="text-med"> x <input type="text" id="rect_strut_depth" value="3.5" class="text-med"></p>
+									<p><input type="checkbox" id="draw_rect_frame" > Draw Inner Frame</p>
 								</ul><br>
-								<p><input type="radio" name="strut_type" value="cylindrical">Cylinder</p>
+								<p><input type="radio" id="st_cyl" name="strut_type" value="cylindrical">Cylinder</p>
+								<input type="hidden" name="strut_type_val" type="text">
+								
 								<p>Enter radius of strut </p>
 								<ul>
-									<input type="text" id="strut_radius" value="1" class="text-med">
+									<input type="text" id="cylinder_strut_radius" value="1" class="text-med">
 								</ul>
 								<p>Enter extension of strut past hub centre</p>
 								<ul>
-									<input type="text" id="strut_extension" value="0" class="text-med">
+									<input type="text" id="cylinder_strut_extension" value="0" class="text-med">
 								</ul>								
 								<p>Enter offset of strut end </p>
 								<ul>
-									<input type="text" id="strut_offset" value="0" class="text-med">
+									<input type="text" id="cylinder_strut_offset" value="0" class="text-med">
 								</ul>								
 							</ul>
 						</div>
@@ -157,13 +159,14 @@
 								<ul><table cellpadding=10>
 									<tr><td valign="middle">Select Hub Material</td><td valign="bottom"><input type="file" disabled id="hub_material" accept="skp"></td><td><a href="#" data-toggle="popover" id = "SKMTools3" ></a></td></tr>
 								</table></ul>
-								<p><input type="radio" name="hub_type" value="Cylindrical">Cylindrical</p>
-								<p><input type="radio" name="hub_type" value="Spherical">Sphere</p>
+								<p><input type="radio" id="ht_cyl" name="hub_type" value="Cylindrical" checked="checked">Cylindrical</p>
+								<p><input type="radio" id="ht_sph" name="hub_type" value="Spherical">Sphere</p>
 								<p>Enter radius of sphere hub</p>
 								<ul>
 									<input type="text" id="sphere_radius" value="5" class="text-med">
 								</ul>
-								<p><input type="radio" name="hub_type" value="None" checked="checked">No Hubs</p>
+								<p><input type="radio" id="ht_non" name="hub_type" value="None" >No Hubs</p>
+								<input type="hidden" name="hub_type_val" type="text">
 							</ul>  
 						</a>
 					</div>
@@ -179,11 +182,9 @@
 	<script src="../js/bootstrap-slider.js"></script>
 		<!-- Scripts for Validations and Communication with SketchUp -->
 	<script language="javascript">
-		//var option_map = new Map();
-	    var options = {};   // object that stores all of our settings
 		var face_opacity;
 			
-		function dataFromSketchup(variable, val){
+		function dataFromSketchup(variable, val) {	
 			if (variable == "SKMTools_installed" && val != "1") {
 				//Show text so user can see reason why they can't use Materials selectors
 				$('#SKMTools1').text('why?');	
@@ -196,7 +197,23 @@
 				$('#hub_material').removeAttr("disabled"); 		   
 		   }
 		}
+		
+		function setVar(variable, val) {
 
+
+			if(variable == "ps4" || variable == "ps8" || variable == "ps20" || variable == "st_rect" || variable == "st_cyl" || variable == "ht_sph" || variable == "ht_cyl" || variable == "ht_non") {
+				alert('got a radiobox: ' + variable + ' = ' + document.getElementById(variable).value);
+				if (val == 1) {
+					document.getElementById(variable).checked = true;	
+				} else {
+					document.getElementById(variable).checked = false;					
+				}
+			} else {
+				document.getElementById(variable).value = val;
+			}
+
+		}
+		
 		function call_ruby( callback_name, message ) {
 			//alert(callback_name + ": " + message);
 			window.location = 'skp:' + callback_name + '@' + message
@@ -215,17 +232,11 @@
 					if (int_var < min || int_var > max) {
 						alert("Woah there cowboy. How about making " + int_var_str + " a number between " + min + " and " + max);
 						return 1;
-					} else {
-						//option_map.set(int_var_str, int_var);
-						options[int_var_str] = int_var;
 					}
 				} else {
 					if (int_var < min) {
 						alert("Woah there cowboy. How about making " + int_var_str + " a number greater than " + min);
 						return 1;
-					} else {
-						//option_map.set(int_var_str, int_var);
-						options[int_var_str] = int_var;
 					}
 				}		
 			} else {
@@ -243,10 +254,6 @@
 				if (float_var < min) {
 					alert("Woah there cowboy. How about making " + float_var_str + " a number greater than " + min);
 					return 1;
-				} else {
-					//alert(float_var_str + ": " + float_var);
-					//option_map.set(float_var_str, float_var);
-					options[float_var_str] = float_var;
 				}
 			} else {
 				alert(float_var_str + " must be a number! Please correct and try again");
@@ -255,37 +262,33 @@
 			return 0;
 		}
 
-		function add_checkbox(var_str) {
-			if (document.getElementById(var_str).checked == true) {
-				//option_map.set(var_str, 1);			
-				options[var_str] = "1";
-			} else {
-				//option_map.set(var_str, 0);			
-				options[var_str] = "0";
-			}
-		}
-
 		function add_radio_data(field) {
 			//Get the field data
 			var ps = document.getElementsByName(field);
 
-			//alert("In add_radio_data:" + ps.length);
 			for (var i = 0, length = ps.length; i < length; i++) {
 				if (ps[i].checked) {
-					//alert("PS: " + i + " checked: " + field + " = " + ps[i].value);
-					// Send the value back to SketchUp
-					//option_map.set(field, ps[i].value);		
-					//option_map.set(field, "20");		
-					//option.map.set("test","testval");
-					//alert("option set");
-					options[field] = ps[i].value;
-					// only one radio can be logically checked, don't check the rest
-					break;
+					ps[i].value = "1";
+				} else {
+					ps[i].value = "0";
 				}
 			}
-			//alert("done radio");
 		}
+			
 
+		function add_checkbox_data(field){
+			//get the checkbox value
+			thevalue = document.getElementById(field).checked;
+			if (thevalue == true) {
+				document.getElementById(field).value = true;
+				//alert(field + ": " + thevalue);
+			} else {
+				document.getElementById(field).value = true;
+			}
+			//send it back to ruby
+		
+		}
+		
 		function file_check(field, ext_check) {
 			var ext = document.getElementById(field).value;
 
@@ -296,13 +299,9 @@
 					alert('You selected a .' + ext + ' file; please select a .' + ext_check + ' file instead!');
 					return false; 
 				} else {
-					//option_map.set(field, document.getElementById(field).value);							
-					options[field] = document.getElementById(field).value;
 					return true; 
 				}
 			} else {
-				//option_map.set(field, "");										
-				options[field] = "";	// So we can detect no material on the SU end and assign a default color
 				return true;	
 			}
 		}
@@ -312,29 +311,16 @@
 		{
 			var size = 0, key;
 			var setting, value;
+			var vars = "";
 			
-			//alert("send setting");
-			//size = option_map.size;
 			for (key in options) {
-			//if (options.hasOwnProperty(key)) {
 				size++;
-			//	alert("Option: " + key);
+				vars = vars.concat(key);
 			}
-			//size = options.length;
-			//alert("Size:" + size);
 			if (size > 0) {
-				//alert("doing option");
-				//alert(size + " : " + setting);
 				for (key in options) break; // Get the first setting
-				//for (setting in option_map.keys()) break; // Get the first setting			
-				//var mapIter = option_map.keys();
 				value = options[key];
-				//key = mapIter.next().value;
 				delete options[key];
-				//value = option_map.get(key);
-				//alert(key + ": " + value)
-				//option_map.delete(key);
-				//alert(setting);
 				call_ruby(key, value);
 			} else {
 				//alert("go create");
@@ -344,89 +330,44 @@
 		
 		function validate_form() {
 			var error = 0;
-
-			//alert("before: " + error);
+			var ret;
 			
-			//Send Platonic Solid data
-			add_radio_data('platonic_solid');
-			//alert("after: " + error);
-
-			//Send Strut type
+			add_radio_data('g_platonic_solid');
 			add_radio_data('strut_type');
-
-			//Send Hub type
 			add_radio_data('hub_type');
 			
-			var ret;
-			//Check and send the frequency data	
-			ret = validate_int('frequency', 1, 10);
-			if (ret == 1) { error = 1; }	
-
-			//Check and send the fraction data
-			ret = validate_int('fraction_num', 1, 1);
-			if (ret == 1) { error = 1; }
-
-			ret = validate_int('fraction_den', 1, 1);
-			if (ret == 1) { error = 1; }
-
-			//alert("got here: " + error);
-
-			//Check and send the radius data
-			ret = validate_float('radius_x', 0);
-			if (ret == 1) { error = 1; }
-			ret = validate_float('radius_y', 0);
-			if (ret == 1) { error = 1; }
-			ret = validate_float('radius_z', 0);
-			if (ret == 1) { error = 1; }
-
-			//Check and send the thickness data
-			ret = validate_float('thickness', 0);
-			if (ret == 1) { error = 1; }
-
-			//Check and send the depth data
-			ret = validate_float('thickness', 0);
-			if (ret == 1) { error = 1; }
+			add_checkbox_data('draw_struts');
+			add_checkbox_data('draw_hubs');
+			add_checkbox_data('draw_faces');
+			add_checkbox_data('draw_primative_vertex_points');
+			add_checkbox_data('draw_base_frame');
+			add_checkbox_data('draw_rect_frame');
+			add_checkbox_data('flatten_strut_base');
 			
-			//Check and send the sphere hub radius
-			ret = validate_float('sphere_radius', 0);
-			if (ret == 1) { error = 1; }
+			if (validate_int('g_frequency', 1, 10) == 1) error = 1;
+			if (validate_int('g_fraction_num', 1, 1) == 1) error = 1;
+			if (validate_int('g_fraction_den', 1, 1) == 1) error = 1;
 
-			//Check and send the base frame height
-			ret = validate_float('base_frame_height', 0);
-			if (ret == 1) { error = 1; }
-			
-			//Check and send the strut radius (for cylindrical type)
-			ret = validate_float('strut_radius', 0);
-			if (ret == 1) { error = 1; }
+			if (validate_float('g_radius_x', 0) == 1) error = 1;
+			if (validate_float('g_radius_y', 0) == 1) error = 1;
+			if (validate_float('g_radius_z', 0) == 1) error = 1;
+			if (validate_float('rect_strut_thickness', 0) == 1) error = 1;
+			if (validate_float('rect_strut_depth', 0) == 1) error = 1;
+			if (validate_float('sphere_radius', 0) == 1) error = 1;
+			if (validate_float('base_frame_height', 0) == 1) error = 1;
+			if (validate_float('cylinder_strut_extension', -Infinity) == 1) error = 1;
+			if (validate_float('cylinder_strut_radius', 0) == 1) error = 1;
+			if (validate_float('cylinder_strut_offset', -Infinity) == 1) error = 1;
 
-			//Check and send the strut extension (for cylindrical type)
-			ret = validate_float('strut_extension', -Infinity);
-			if (ret == 1) { error = 1; }
-
-			//Check and send the strut offset (for cylindrical type)
-			ret = validate_float('strut_offset', -Infinity);
-			if (ret == 1) { error = 1; }
-			
-			//send_checkbox("draw_edges")
-			//<input type="checkbox" id="draw_edges"> Draw Geodesic Edges
-			add_checkbox("draw_faces");
-			add_checkbox("draw_struts");
-			add_checkbox("draw_wood_frame");
-			add_checkbox("draw_hubs");
-			add_checkbox("draw_cpoints");
-			add_checkbox("flatten_strut_base");
-			//add_checkbox("draw_base_frame") <-- Feature not finished so turned off
-			//Send the face material
 			if(file_check("face_material", "skm") == false) { error = 1; }
 			if(file_check("strut_material", "skm") == false) { error = 1; }
 			if(file_check("hub_material", "skm") == false) { error = 1; }
-			//send the face opacity
+
 			//options["face_opacity"] = face_opacity.getValue();
 			//option_map.set(face_opacity, face_opacity.getValue());			
 
-			//alert("error:" + error);
 			if (error == 0) {
-				send_setting();
+				call_ruby("create_geodesic", 1);
 			}
 		}
 		
